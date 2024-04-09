@@ -1,3 +1,7 @@
+import onVerifiedConnection from "./eventListeners/verifiedConnection";
+import onReceiveVerifyRequest from "./eventListeners/verifyRequest";
+import "./styles.css";
+
 function loadScript(url: string, callback: () => void): void {
     const script = document.createElement("script");
     script.async = true;
@@ -67,63 +71,6 @@ const openModal = (qrString: string) => {
     });
 };
 
-const onConnectToUserChannel = (userChannel: {
-    trigger: (eventName: string, payload: any) => void;
-}) => {
-    const triggerData = {
-        signature: window.HASHConnect.userProfile.signature,
-        channel: window.HASHConnect.userProfile.channel,
-        domain: "localhost",
-        name: "Hash Pass Admin Panel",
-        orgHash: null,
-    };
-    let userData = userChannel.trigger(
-        "client-hash-pass-request-verify",
-        triggerData
-    );
-    console.log({
-        event: "client-hash-pass-request-verify",
-        userData,
-        triggerData,
-    });
-};
-
-const onVerifiedConnection = (data: any) => {
-    console.log("client-hash-pass-verify");
-    // Está conectado y se muestra el panel administrativo
-
-    const btn = document.getElementById("hash-connect-btn");
-    if (btn) {
-        btn.style.display = "none";
-    }
-    const profileWrapper = document.getElementById("hash-connect-profile");
-    if (profileWrapper) {
-        profileWrapper.innerHTML = window.HASHConnect.userProfile.address!;
-    }
-};
-
-const onReceiveVerifyRequest = (data: {
-    address: string;
-    signature: string;
-}) => {
-    const userAddress = data?.address;
-    const userSignature = data?.signature;
-    const userChannelName = `private-${userAddress}`;
-
-    window.HASHConnect.userProfile.address = userAddress;
-    window.HASHConnect.userProfile.signature = userSignature;
-    window.HASHConnect.userProfile.channel = userChannelName;
-    console.log({ profile: window.HASHConnect.userProfile });
-
-    const userChannel =
-        window.HASHConnect.pusherInstance.subscribe(userChannelName);
-    userChannel.bind("pusher:subscription_succeeded", () =>
-        onConnectToUserChannel(userChannel)
-    );
-
-    console.log({ userChannel });
-};
-
 // Add or initialize the HASHConnect property on the window object
 window.HASHConnect = window.HASHConnect || {
     isConnected: false,
@@ -155,9 +102,7 @@ window.HASHConnect = window.HASHConnect || {
 
             // open QR code modal
             openModal(window.HASHConnect.QRCodeString);
-            channel.bind("client-hash-pass-verify", () => {
-                console.log("here");
-            });
+            channel.bind("client-hash-pass-verify", onVerifiedConnection);
             channel.bind("client-hash-pass-connect", onReceiveVerifyRequest);
         } catch (ex) {
             console.error("Error connecting to HASH Pass");
