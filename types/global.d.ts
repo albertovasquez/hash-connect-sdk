@@ -6,6 +6,7 @@ type IHashConnect = {
     isConnected: boolean;
     pusherInstance: any;
     QRCode: any;
+    SessionChannelName: string | null;
     QRCodeString: string | null;
     userProfile: {
         address: string | null;

@@ -77,6 +77,7 @@ window.HASHConnect = window.HASHConnect || {
     QRCode: null,
     QRCodeString: null,
     pusherInstance: null,
+    SessionChannelName: null,
     userProfile: {
         address: null,
         channel: null,
@@ -91,6 +92,7 @@ window.HASHConnect = window.HASHConnect || {
             const random = Math.random().toString(36).slice(2);
             const channelName = `private-hc-${random}`;
             window.HASHConnect.QRCodeString = `hc:${random}`;
+            window.HASHConnect.SessionChannelName = `private-hc-${random}`;
             console.log("Connecting to Pusher Channel", channelName);
             let channel =
                 window.HASHConnect.pusherInstance.subscribe(channelName);

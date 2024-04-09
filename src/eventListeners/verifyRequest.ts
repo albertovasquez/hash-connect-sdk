@@ -3,7 +3,7 @@ const onConnectToUserChannel = (userChannel: {
 }) => {
     const triggerData = {
         signature: window.HASHConnect.userProfile.signature,
-        channel: window.HASHConnect.userProfile.channel,
+        channel: window.HASHConnect.SessionChannelName,
         domain: "localhost",
         name: "Hash Pass Admin Panel",
         orgHash: null,
