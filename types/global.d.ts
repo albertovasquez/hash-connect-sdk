@@ -3,9 +3,10 @@ export {}; // Ensure this file is treated as a module
 
 type IHashConnect = {
     connect: () => void;
+    setIsConnected: (value: boolean) => void;
+    setPusherClient: (client: any) => void;
+    setQRCodeGenerator: (generator: any) => void;
     isConnected: boolean;
-    pusherInstance: any;
-    QRCode: any;
     SessionChannelName: string | null;
     QRCodeString: string | null;
     userProfile: {
