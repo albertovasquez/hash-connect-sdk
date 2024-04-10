@@ -13,7 +13,7 @@ const addElements = () => {
     button.id = "hash-connect-btn";
     button.textContent = "Open HASH";
     button.addEventListener("click", async () => {
-        window.HASHConnect.connect();
+        if (window?.HASHConnect?.connect) window.HASHConnect.connect();
     });
     hashConnectWrapper?.appendChild(button);
 };
