@@ -15,6 +15,15 @@ const makeUserAgent = ({
     let qrCodeGenerator: any = null;
     let QRCodeString: string | null = null;
     let SessionChannelName: string | null = null;
+    let profile = {
+        address: null,
+        channel: null,
+        signature: null,
+    } as {
+        address: string | null;
+        channel: string | null;
+        signature: string | null;
+    };
 
     const connect = async () => {
         if (isConnected) return;
@@ -26,7 +35,21 @@ const makeUserAgent = ({
             QRCodeString = `hc:${random}`;
             SessionChannelName = `private-hc-${random}`;
         }
-        _connect({ openModal, pusherClient, channelName: SessionChannelName });
+        _connect({
+            openModal,
+            pusherClient,
+            channelName: SessionChannelName,
+            setProfile: (
+                address: string,
+                signature: string,
+                channelName: string
+            ) => {
+                profile.address = address;
+                profile.signature = signature;
+                profile.channel = channelName;
+            },
+            getProfile: () => profile,
+        });
         isConnected = true;
     };
 
@@ -40,6 +63,18 @@ const makeUserAgent = ({
         if (qrCodeGenerator === null) {
             qrCodeGenerator = await getQrCodeGenerator();
         }
+
+        const onClose = () => {
+            console.log("Modal Closed By Entity");
+
+            pusherClient.unsubscribe(SessionChannelName);
+            isConnected = false;
+            profile = {
+                address: null,
+                channel: null,
+                signature: null,
+            };
+        };
 
         const onReady = (qrCodeGenerator: any) => {
             console.log({ qrCodeGenerator });
@@ -59,16 +94,12 @@ const makeUserAgent = ({
             };
         };
 
-        _openModal(onReady(qrCodeGenerator));
+        _openModal(onReady(qrCodeGenerator), onClose);
     };
 
     return {
         getUser: () => ({
-            profile: {
-                address: null,
-                channel: null,
-                signature: null,
-            },
+            profile,
         }),
         connect,
     };

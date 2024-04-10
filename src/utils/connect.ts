@@ -5,23 +5,26 @@ export default function connect({
     openModal,
     pusherClient,
     channelName,
+    setProfile,
+    getProfile,
 }: {
     openModal: () => void;
     pusherClient: {
         subscribe: (channelName: string) => any;
     };
     channelName: string;
+    setProfile: (
+        address: string,
+        signature: string,
+        channelName: string
+    ) => void;
+    getProfile: () => {
+        address: string | null;
+        channel: string | null;
+        signature: string | null;
+    };
 }) {
-    if (window.HASHConnect.isConnected) {
-        console.log("Already connected to HASH");
-    }
-
     try {
-        // const random = Math.random().toString(36).slice(2);
-        // const channelName = `private-hc-${random}`;
-        // window.HASHConnect.QRCodeString = `hc:${random}`;
-        // window.HASHConnect.SessionChannelName = `private-hc-${random}`;
-        // console.log("Connecting to Pusher Channel", channelName);
         let channel = pusherClient.subscribe(channelName);
         const btn = document.getElementById("hash-connect-btn");
         if (btn) {
@@ -30,8 +33,24 @@ export default function connect({
 
         // open QR code modal
         openModal();
-        channel.bind("client-hash-pass-verify", onVerifiedConnection);
-        channel.bind("client-hash-pass-connect", onReceiveVerifyRequest);
+        channel.bind(
+            "client-hash-pass-verify",
+            (data: { address: string; token: string }) =>
+                onVerifiedConnection(data)
+        );
+        channel.bind(
+            "client-hash-pass-connect",
+            (data: { address: string; signature: string }) => {
+                const profile = getProfile();
+                onReceiveVerifyRequest(
+                    data,
+                    pusherClient,
+                    setProfile,
+                    profile,
+                    channelName
+                );
+            }
+        );
     } catch (ex) {
         console.error("Error connecting to HASH Pass");
         console.log(ex);

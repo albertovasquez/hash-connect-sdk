@@ -1,9 +1,17 @@
-const onConnectToUserChannel = (userChannel: {
-    trigger: (eventName: string, payload: any) => void;
-}) => {
+const onConnectToUserChannel = (
+    userChannel: {
+        trigger: (eventName: string, payload: any) => void;
+    },
+    userProfile: {
+        address: string | null;
+        signature: string | null;
+    },
+    SessionChannelName: string
+) => {
+    console.log(userProfile, SessionChannelName);
     const triggerData = {
-        signature: window.HASHConnect.userProfile.signature,
-        channel: window.HASHConnect.SessionChannelName,
+        signature: userProfile.signature,
+        channel: SessionChannelName,
         domain: "localhost",
         name: "Hash Pass Admin Panel",
         orgHash: null,
@@ -19,21 +27,33 @@ const onConnectToUserChannel = (userChannel: {
     });
 };
 
-export default (data: { address: string; signature: string }) => {
+export default (
+    data: { address: string; signature: string },
+    pusherClient: {
+        subscribe: (channelName: string) => {
+            bind: (val: string, fnc: () => void) => void;
+            trigger: () => void;
+        };
+    },
+    setProfile: (
+        address: string,
+        signature: string,
+        channelName: string
+    ) => void,
+    userProfile: {
+        address: string | null;
+        signature: string | null;
+    },
+    SessionChannelName: string
+) => {
     const userAddress = data?.address;
     const userSignature = data?.signature;
     const userChannelName = `private-${userAddress}`;
 
-    window.HASHConnect.userProfile.address = userAddress;
-    window.HASHConnect.userProfile.signature = userSignature;
-    window.HASHConnect.userProfile.channel = userChannelName;
-    console.log({ profile: window.HASHConnect.userProfile });
+    setProfile(userAddress, userSignature, userChannelName);
 
-    const userChannel =
-        window.HASHConnect.pusherInstance.subscribe(userChannelName);
+    const userChannel = pusherClient.subscribe(userChannelName);
     userChannel.bind("pusher:subscription_succeeded", () =>
-        onConnectToUserChannel(userChannel)
+        onConnectToUserChannel(userChannel, userProfile, SessionChannelName)
     );
-
-    console.log({ userChannel });
 };

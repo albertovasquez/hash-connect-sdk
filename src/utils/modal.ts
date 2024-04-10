@@ -1,4 +1,4 @@
-export const openModal = (onReady: () => void) => {
+export const openModal = (onReady: () => void, onClose: () => void) => {
     const body = document.getElementsByTagName("body")[0];
     const modal = document.createElement("div");
     modal.id = "hash-connect-modal";
@@ -12,26 +12,16 @@ export const openModal = (onReady: () => void) => {
       `;
     body.appendChild(modal);
 
-    document
-        .getElementById("close-button")!
-        .addEventListener("click", closeModalDisconnect);
+    document.getElementById("close-button")!.addEventListener("click", () => {
+        closeModalDisconnect();
+        onClose();
+    });
 
     onReady();
 };
 
 export const closeModalDisconnect = () => {
     closeModal();
-
-    // window.HASHConnect.pusherInstance.unsubscribe(
-    //   window.HASHConnect.SessionChannelName
-    // );
-    // window.HASHConnect.isConnected = false;
-    // window.HASHConnect.userProfile = {
-    //   address: null,
-    //   channel: null,
-    //   signature: null,
-    // };
-
     const profileWrapper = document.getElementById("hash-connect-profile");
     if (profileWrapper) {
         profileWrapper.innerHTML = "";
