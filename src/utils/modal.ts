@@ -12,18 +12,8 @@ export const openModal = (qrString: string) => {
       `;
   body.appendChild(modal);
 
-  const qrCodeDiv = document.getElementById("hash-connect-qrcode");
   console.log({ qrString });
-  var qrcode = new window.HASHConnect.QRCode(qrCodeDiv, {
-    text: qrString,
-    width: 128,
-    height: 128,
-    colorDark: "#000000",
-    colorLight: "#ffffff",
-    correctLevel: window.HASHConnect.QRCode.CorrectLevel.H,
-  });
-
-  document
+  var qrcode = document
     .getElementById("close-button")!
     .addEventListener("click", closeModalDisconnect);
 };
@@ -31,15 +21,15 @@ export const openModal = (qrString: string) => {
 export const closeModalDisconnect = () => {
   closeModal();
 
-  window.HASHConnect.pusherInstance.unsubscribe(
-    window.HASHConnect.SessionChannelName
-  );
-  window.HASHConnect.isConnected = false;
-  window.HASHConnect.userProfile = {
-    address: null,
-    channel: null,
-    signature: null,
-  };
+  // window.HASHConnect.pusherInstance.unsubscribe(
+  //   window.HASHConnect.SessionChannelName
+  // );
+  // window.HASHConnect.isConnected = false;
+  // window.HASHConnect.userProfile = {
+  //   address: null,
+  //   channel: null,
+  //   signature: null,
+  // };
 
   const profileWrapper = document.getElementById("hash-connect-profile");
   if (profileWrapper) {
