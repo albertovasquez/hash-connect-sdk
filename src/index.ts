@@ -21,11 +21,4 @@ const addElements = () => {
 // Add or initialize the HASHConnect property on the window object
 window.HASHConnect = window.HASHConnect || UserAgent;
 
-// (async () => {
-//     const pusherClient = await getPusherClient();
-//     const qRCodeGenerator = await getQrCodeGenerator();
-//     window.HASHConnect.setPusherClient(pusherClient);
-//     window.HASHConnect.setQRCodeGenerator(qRCodeGenerator);
-// })();
-
 addElements();
