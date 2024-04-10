@@ -22,6 +22,7 @@ export default function connect({
         address: string | null;
         channel: string | null;
         signature: string | null;
+        token: string | null;
     };
 }) {
     try {
@@ -33,6 +34,13 @@ export default function connect({
 
         // open QR code modal
         openModal();
+        if (localStorage.getItem("hc:sessionId")) {
+            onVerifiedConnection({
+                address: getProfile().address!,
+                token: getProfile().token!,
+            });
+            return;
+        }
         channel.bind(
             "client-hash-pass-verify",
             (data: { address: string; token: string }) =>

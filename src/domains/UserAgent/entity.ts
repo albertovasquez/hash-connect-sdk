@@ -10,6 +10,7 @@ const makeUserAgent = ({
     getPusherClient: any;
 }) => {
     // privates
+    let sessionId: string | null = null;
     let isConnected = false;
     let pusherClient: any = null;
     let qrCodeGenerator: any = null;
@@ -23,18 +24,26 @@ const makeUserAgent = ({
         address: string | null;
         channel: string | null;
         signature: string | null;
+        token: string | null;
     };
+
+    if (localStorage.getItem("hc:token")) {
+        profile.token = localStorage.getItem("hc:token");
+        profile.address = localStorage.getItem("hc:address");
+    }
 
     const connect = async () => {
         if (isConnected) return;
         console.log("Connecting to HASH Pass");
         if (pusherClient === null) {
             pusherClient = await getPusherClient();
-
-            const random = Math.random().toString(36).slice(2);
-            QRCodeString = `hc:${random}`;
-            SessionChannelName = `private-hc-${random}`;
+            if (!sessionId) {
+                sessionId = Math.random().toString(36).slice(2);
+                QRCodeString = `hc:${sessionId}`;
+                SessionChannelName = `private-hc-${sessionId}`;
+            }
         }
+
         _connect({
             openModal,
             pusherClient,
@@ -66,23 +75,23 @@ const makeUserAgent = ({
 
         const onClose = () => {
             console.log("Modal Closed By Entity");
-
+            localStorage.removeItem("hc:sessionId");
             pusherClient.unsubscribe(SessionChannelName);
             isConnected = false;
             profile = {
                 address: null,
                 channel: null,
                 signature: null,
+                token: null,
             };
         };
 
         const onReady = (qrCodeGenerator: any) => {
-            console.log({ qrCodeGenerator });
             return () => {
+                localStorage.setItem("hc:sessionId", sessionId!);
                 const qrCodeDiv = document.getElementById(
                     "hash-connect-qrcode"
                 );
-                console.log({ QRCodeString }, qrCodeGenerator.CorrectLevel.H);
                 new qrCodeGenerator(qrCodeDiv, {
                     text: QRCodeString,
                     width: 128,
@@ -97,10 +106,27 @@ const makeUserAgent = ({
         _openModal(onReady(qrCodeGenerator), onClose);
     };
 
+    // CHECK IF ANY DATA IN LOCAL STORAGE
+    if (localStorage.getItem("hc:sessionId")) {
+        sessionId = localStorage.getItem("hc:sessionId");
+        QRCodeString = `hc:${sessionId}`;
+        SessionChannelName = `private-hc-${sessionId}`;
+        connect();
+    }
+
     return {
-        getUser: () => ({
-            address: profile.address,
-        }),
+        getUser: () => {
+            const user: {
+                address: string | null;
+                token?: string | null;
+            } = {
+                address: profile.address,
+            };
+            if (isConnected) {
+                user.token = profile.token;
+            }
+            return user;
+        },
         connect,
     };
 };

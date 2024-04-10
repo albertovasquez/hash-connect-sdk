@@ -1,24 +1,41 @@
 import "./styles.css";
-import { loadScript } from "./utils/loadScript";
+import { loadScript } from "./utils/loadScript"; // Ensure this is used if necessary, else remove it.
 import UserAgent from "./domains/UserAgent";
 
-const addElements = () => {
-    const hashConnectWrapper = document.getElementById("hash-connect");
-
+// Function to create and append a profile div to the wrapper
+function createProfileDiv(wrapper: HTMLElement) {
     const div = document.createElement("div");
     div.id = "hash-connect-profile";
-    hashConnectWrapper?.appendChild(div);
+    wrapper.appendChild(div);
+}
 
+// Function to create and append a button to the wrapper
+function createConnectButton(wrapper: HTMLElement) {
     const button = document.createElement("button");
     button.id = "hash-connect-btn";
     button.textContent = "Open HASH";
     button.addEventListener("click", async () => {
-        if (window?.HASHConnect?.connect) window.HASHConnect.connect();
+        // Safely accessing HASHConnect.connect using optional chaining
+        window.HASHConnect?.connect?.();
     });
-    hashConnectWrapper?.appendChild(button);
-};
+    wrapper.appendChild(button);
+    return button;
+}
 
-// Add or initialize the HASHConnect property on the window object
-window.HASHConnect = window.HASHConnect || UserAgent;
+// Main function to add elements to the DOM
+function addElements() {
+    const hashConnectWrapper = document.getElementById("hash-connect");
+    if (!hashConnectWrapper) return; // Early return if the wrapper is not found
 
+    createProfileDiv(hashConnectWrapper);
+    const btn = createConnectButton(hashConnectWrapper);
+    if (!localStorage.getItem("hc:sessionId")) {
+        btn.style.display = "block";
+    }
+}
+
+// Execute the main function to add elements
 addElements();
+
+// Initialize or add the HASHConnect property on the window object
+window.HASHConnect = window.HASHConnect || UserAgent;
