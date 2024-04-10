@@ -99,7 +99,7 @@ const makeUserAgent = ({
 
     return {
         getUser: () => ({
-            profile,
+            address: profile.address,
         }),
         connect,
     };
