@@ -7,6 +7,7 @@ export default function connect({
     channelName,
     setProfile,
     getProfile,
+    setToken
 }: {
     openModal: () => void;
     pusherClient: {
@@ -24,6 +25,7 @@ export default function connect({
         signature: string | null;
         token: string | null;
     };
+    setToken: (token: string) => void;
 }) {
     try {
         let channel = pusherClient.subscribe(channelName);
@@ -40,7 +42,9 @@ export default function connect({
             onVerifiedConnection({
                 address: getProfile().address!,
                 token: getProfile().token!,
-            });
+            },
+            setToken
+          );
             return;
         } else {
             console.log("Clearning Session");
@@ -56,7 +60,7 @@ export default function connect({
         channel.bind(
             "client-hash-pass-verify",
             (data: { address: string; token: string }) =>
-                onVerifiedConnection(data)
+                onVerifiedConnection(data, setToken)
         );
         channel.bind(
             "client-hash-pass-connect",

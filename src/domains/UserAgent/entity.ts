@@ -20,6 +20,7 @@ const makeUserAgent = ({
         address: null,
         channel: null,
         signature: null,
+        token: null
     } as {
         address: string | null;
         channel: string | null;
@@ -52,13 +53,18 @@ const makeUserAgent = ({
             setProfile: (
                 address: string,
                 signature: string,
-                channelName: string
+                channelName: string,
+                token: string
             ) => {
                 profile.address = address;
                 profile.signature = signature;
                 profile.channel = channelName;
+                profile.token = token;
             },
             getProfile: () => profile,
+            setToken: (token: string) =>{
+                profile.token = token;
+              }
         });
         isConnected = true;
     };
@@ -118,8 +124,9 @@ const makeUserAgent = ({
         connect();
     }
 
-    return {
+    return Object.freeze({
         getUser: () => {
+            console.log(profile, isConnected);
             const user: {
                 address: string | null;
                 token?: string | null;
@@ -132,7 +139,7 @@ const makeUserAgent = ({
             return user;
         },
         connect,
-    };
+    });
 };
 
 export default makeUserAgent;

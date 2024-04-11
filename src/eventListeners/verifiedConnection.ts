@@ -1,6 +1,9 @@
 import { closeModal, closeModalDisconnect } from "../utils/modal";
 
-export default (data: { address: string; token: string }) => {
+export default (
+  data: { address: string; token: string },
+  setToken: (token: string) => void
+) => {
   const formatAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
@@ -8,6 +11,8 @@ export default (data: { address: string; token: string }) => {
 
   localStorage.setItem("hc:token", data.token);
   localStorage.setItem("hc:address", data.address);
+
+  setToken(data.token);
 
   const btn = document.getElementById("hash-connect-btn");
   if (btn) {
@@ -17,13 +22,16 @@ export default (data: { address: string; token: string }) => {
   const profileWrapper = document.getElementById("hash-connect-profile");
   if (profileWrapper) {
     const content = `<div id="hash-connect-disconnect-div">
-                           <span id="hash-connect-disconnect-span">${formatAddress(data.address)}</span>
+                           <span id="hash-connect-disconnect-span">${formatAddress(
+                             data.address
+                           )}</span>
                            <button id="hash-connect-disconnect-btn">Disconnect</button>
                          </div>`;
-        profileWrapper.innerHTML = content;
+    profileWrapper.innerHTML = content;
 
-        document.getElementById("hash-connect-disconnect-btn")!.onclick = closeModalDisconnect;
-    }
+    document.getElementById("hash-connect-disconnect-btn")!.onclick =
+      closeModalDisconnect;
+  }
 
   closeModal();
 };
