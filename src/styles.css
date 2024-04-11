@@ -1,106 +1,106 @@
+* {
+  font-family: "Raleway";
+  color: #3c3b3b;
+  font-weight: 800;
+}
+
 #hash-connect-btn {
-    display: none;
-    background-color: #e81d05;
-    color: white;
-    font-weight: 500;
-    padding: 10px 20px;
-    font-size: 16px;
-    border: none;
-    border-radius: 50px;
-    cursor: pointer;
-    float: right;
-    margin-right: 20px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s ease;
+  display: none;
+  background-color: white;
+  width: 250px;
+  height: 45px;
+  padding: 10px 20px;
+  font-size: 0.7rem;
+  border: 1px solid #a0a0a04d;
+  cursor: pointer;
+  float: right;
+  margin-right: 20px;
 }
 
 #hash-connect-btn:hover {
-    background-color: #921406;
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
-    transform: translateY(-2px);
+  border: 1px solid #2ebaae;
+  color: #2ebaae;
 }
 
 #hash-connect-disconnect-div {
-    background: linear-gradient(to right, #6345e8, #170565);
-    width: 250px;
-    float: right;
-    color: white;
-    padding: 10px 20px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    border-radius: 50px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s ease;
+  background-color: white;
+  width: 250px;
+  height: 45px;
+  float: right;
+  padding: 10px 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #a0a0a04d;
 }
 
 #hash-connect-disconnect-span {
-    margin-right: 10px;
+  margin-right: 10px;
 }
 
 #hash-connect-disconnect-btn {
-    color: #fff;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 10px;
-    border: white 1px solid;
-    border-radius: 50px;
-    padding: 7px 25px;
-    text-decoration: underline;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px;
+  border: #a0a0a04d 1px solid;
+  border-radius: 50px;
+  padding: 7px 25px;
 }
 
-#hash-connect-disconnect-btn:hover {
-    text-decoration: underline;
+#hash-connect-disconnect-btn:hover,
+#hash-connect-disconnect-div:hover {
+  color: #2ebaae;
+  border: 1px solid #2ebaae;
 }
 
 #hash-connect-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 999;
-    backdrop-filter: blur(5px);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  backdrop-filter: blur(5px);
 }
 
 #hash-connect-modal-content {
-    background-color: #fff;
-    padding: 50px;
-    border-radius: 10px;
-    width: 320px;
-    position: relative;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  background-color: #fff;
+  padding: 50px;
+  border-radius: 10px;
+  width: 320px;
+  position: relative;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
 
 #close-button {
-    position: absolute;
-    font-size: 1.5rem;
-    top: 10px;
-    right: 10px;
-    border: none;
-    background-color: transparent;
-    cursor: pointer;
-    transition: transform 0.2s ease;
+  position: absolute;
+  font-size: 1.5rem;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+  transition: transform 0.2s ease;
 }
 
 #close-button:hover {
-    transform: rotate(160deg);
+  transform: rotate(160deg);
 }
 
 #hash-connect-modal h2 {
-    text-align: center;
-    margin-top: 0;
-    font-weight: 500;
+  text-align: center;
+  margin-top: 0;
+  font-weight: 500;
 }
 
 #hash-connect-qrcode {
-    display: flex;
-    justify-content: center;
-    margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
 }

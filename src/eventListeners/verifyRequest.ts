@@ -1,3 +1,5 @@
+import { CONFIG } from "../config";
+
 const onConnectToUserChannel = (
     userChannel: {
         trigger: (eventName: string, payload: any) => void;
@@ -12,8 +14,8 @@ const onConnectToUserChannel = (
     const triggerData = {
         signature: userProfile.signature,
         channel: SessionChannelName,
-        domain: "localhost",
-        name: "Hash Pass Admin Panel",
+        domain: CONFIG.DOMAIN,
+        name: CONFIG.APP_NAME,
         orgHash: null,
     };
     let userData = userChannel.trigger(
