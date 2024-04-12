@@ -39,6 +39,19 @@ const makeUserAgent = ({
         profile.address = localStorage.getItem("hc:address");
     }
 
+    const onDisconnect = () => {
+        localStorage.removeItem("hc:sessionId");
+        pusherClient.unsubscribe(SessionChannelName);
+        pusherClient.unsubscribe(`private-${profile.address}`);
+        isConnected = false;
+        profile = {
+            address: null,
+            signature: null,
+            accessToken: null,
+            refreshToken: null,
+        };
+    };
+
     const connect = async () => {
         if (isConnected) return;
         if (pusherClient === null) {
@@ -71,6 +84,7 @@ const makeUserAgent = ({
                 profile.accessToken = accessToken;
                 profile.refreshToken = refreshToken;
             },
+            onDisconnect,
         });
         isConnected = true;
     };
@@ -84,18 +98,6 @@ const makeUserAgent = ({
         if (qrCodeGenerator === null) {
             qrCodeGenerator = await getQrCodeGenerator();
         }
-
-        const onClose = () => {
-            localStorage.removeItem("hc:sessionId");
-            pusherClient.unsubscribe(SessionChannelName);
-            isConnected = false;
-            profile = {
-                address: null,
-                signature: null,
-                accessToken: null,
-                refreshToken: null,
-            };
-        };
 
         const onReady = (qrCodeGenerator: any) => {
             return () => {
@@ -118,7 +120,7 @@ const makeUserAgent = ({
             };
         };
 
-        _openModal(onReady(qrCodeGenerator), onClose);
+        _openModal(onReady(qrCodeGenerator), onDisconnect);
     };
 
     // CHECK IF ANY DATA IN LOCAL STORAGE

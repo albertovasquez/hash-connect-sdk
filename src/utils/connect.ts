@@ -8,6 +8,7 @@ export default function connect({
     setProfile,
     getProfile,
     setToken,
+    onDisconnect,
 }: {
     openModal: () => void;
     pusherClient: {
@@ -22,6 +23,7 @@ export default function connect({
         refreshToken: string | null;
     };
     setToken: (accessToken: string, refreshToken: string) => void;
+    onDisconnect: () => void;
 }) {
     try {
         let channel = pusherClient.subscribe(channelName);
@@ -41,7 +43,8 @@ export default function connect({
                     accessToken: getProfile().accessToken!,
                     refreshToken: getProfile().refreshToken!,
                 },
-                setToken
+                setToken,
+                onDisconnect
             );
             return;
         } else {
@@ -54,7 +57,7 @@ export default function connect({
                 address: string;
                 accessToken: string;
                 refreshToken: string;
-            }) => handleHashConnect(data, setToken)
+            }) => handleHashConnect(data, setToken, onDisconnect)
         );
         channel.bind(
             "client-hash-pass-connect",

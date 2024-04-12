@@ -2,7 +2,8 @@ import { closeModal, closeModalDisconnect } from "../utils/modal";
 
 export default function handleHashConnect(
     data: { address: string; accessToken: string; refreshToken: string },
-    setToken: (accessToken: string, refreshToken: string) => void
+    setToken: (accessToken: string, refreshToken: string) => void,
+    onDisconnect: () => void
 ) {
     const formatAddress = (address: string) => {
         return `${address.slice(0, 4)}...${address.slice(-4)}`;
@@ -30,7 +31,10 @@ export default function handleHashConnect(
         profileWrapper.innerHTML = content;
 
         document.getElementById("hash-connect-disconnect-btn")!.onclick =
-            closeModalDisconnect;
+            () => {
+                closeModalDisconnect();
+                onDisconnect();
+            };
     }
 
     closeModal();
