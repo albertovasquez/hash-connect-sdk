@@ -19,7 +19,11 @@ export const isExpired = (token: string) => {
 
     // console when expires
     // print in minutes when expires from now
-    console.log("expires in", (exp * 1000 - Date.now()) / 1000 / 60, "minutes");
+    console.debug(
+        "expires in",
+        (exp * 1000 - Date.now()) / 1000 / 60,
+        "minutes"
+    );
 
     return Date.now() >= exp * 1000;
 };
