@@ -139,19 +139,16 @@ const makeUserAgent = ({
             let accessToken: string | null = null;
             let refreshToken: string | null = null;
             const expired = isExpired(profile.accessToken);
-            // if (expired) {
-            // event refreshToken
-            ({ accessToken, refreshToken } = await getNewTokens());
-            localStorage.setItem("hc:accessToken", accessToken!);
-            localStorage.setItem("hc:refreshToken", refreshToken!);
-            profile.accessToken = accessToken;
-            profile.refreshToken = refreshToken;
-            // }
+            if (expired) {
+                // event refreshToken
+                ({ accessToken, refreshToken } = await getNewTokens());
+                localStorage.setItem("hc:accessToken", accessToken!);
+                localStorage.setItem("hc:refreshToken", refreshToken!);
+                profile.accessToken = accessToken;
+                profile.refreshToken = refreshToken;
+            }
 
-            accessToken = profile.accessToken!;
-            refreshToken = profile.refreshToken!;
-
-            return { accessToken, refreshToken };
+            return profile.accessToken;
         },
         getUser: () => {
             if (!isConnected) {
