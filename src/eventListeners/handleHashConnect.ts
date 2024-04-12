@@ -1,18 +1,19 @@
 import { closeModal, closeModalDisconnect } from "../utils/modal";
 
-export default (
-  data: { address: string; token: string },
-  setToken: (token: string) => void
-) => {
+export default function handleHashConnect(
+  data: { address: string; accessToken: string; refreshToken: string },
+  setToken: (accessToken: string, refreshToken: string) => void
+) {
   const formatAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
   console.log("client-hash-pass-verify");
 
-  localStorage.setItem("hc:token", data.token);
+  localStorage.setItem("hc:accessToken", data.accessToken);
+  localStorage.setItem("hc:refreshToken", data.refreshToken);
   localStorage.setItem("hc:address", data.address);
 
-  setToken(data.token);
+  setToken(data.accessToken, data.refreshToken);
 
   const btn = document.getElementById("hash-connect-btn");
   if (btn) {
@@ -34,4 +35,4 @@ export default (
   }
 
   closeModal();
-};
+}
