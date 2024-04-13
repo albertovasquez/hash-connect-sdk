@@ -19,8 +19,8 @@ const onConnectToUserChannel = (
         name: siteName.length ? siteName[0].innerText : "Unknown site",
         orgHash: null,
     };
-    let userData = userChannel.trigger(
-        "client-hash-pass-request-verify",
+    userChannel.trigger(
+        "client-request-user-to-authorize-from-site",
         triggerData
     );
 };

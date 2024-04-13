@@ -1,4 +1,5 @@
 import handleHashConnect from "../eventListeners/handleHashConnect";
+import handleHashDisconnect from "../eventListeners/handleHashDisconnect";
 import setupUserSubscription from "../eventListeners/setupUserSubscription";
 
 export default function connect({
@@ -52,12 +53,17 @@ export default function connect({
             openModal();
         }
         channel.bind(
-            "client-hash-pass-verify",
+            "client-send-authorization-to-site",
             (data: {
                 address: string;
                 accessToken: string;
                 refreshToken: string;
             }) => handleHashConnect(data, setToken, onDisconnect)
+        );
+        channel.bind(
+            "client-send-unauthorization-to-site",
+            (data: { address: string }) =>
+                handleHashDisconnect(data, onDisconnect)
         );
         channel.bind(
             "client-hash-pass-connect",
