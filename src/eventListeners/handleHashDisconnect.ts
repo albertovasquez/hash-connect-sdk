@@ -1,6 +1,6 @@
 import { closeModal, closeModalDisconnect } from "../utils/modal";
 
-export default function handleHashConnect(
+export default function handleHashDisConnect(
     data: { address: string },
     onDisconnect: () => void
 ) {

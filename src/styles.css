@@ -2,59 +2,31 @@
 
 #hash-connect {
     font-family: "Montserrat", sans-serif;
-    color: #3c3b3b;
+    color: #000;
     font-weight: 800;
 }
-
+#hash-connect-disconnect-btn,
 #hash-connect-btn {
-    display: none;
     background-color: white;
     width: 250px;
     height: 45px;
     padding: 10px 20px;
     font-size: 0.7rem;
-    border: 1px solid #a0a0a04d;
+    border: 1px solid #000;
     cursor: pointer;
     float: right;
     margin-right: 20px;
 }
 
-#hash-connect-btn:hover {
-    border: 1px solid #2ebaae;
-    color: #2ebaae;
-}
-
-#hash-connect-disconnect-div {
-    background-color: white;
-    width: 250px;
-    height: 45px;
-    float: right;
-    padding: 10px 20px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    border: 1px solid #a0a0a04d;
-}
-
-#hash-connect-disconnect-span {
-    margin-right: 10px;
-}
-
-#hash-connect-disconnect-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 10px;
-    border: #a0a0a04d 1px solid;
-    border-radius: 50px;
-    padding: 7px 25px;
+#hash-connect-btn {
+    display: none;
 }
 
 #hash-connect-disconnect-btn:hover,
-#hash-connect-disconnect-div:hover {
-    color: #2ebaae;
-    border: 1px solid #2ebaae;
+#hash-connect-btn:hover {
+    border: 1px solid #eaeef7;
+    color: #eaeef7;
+    background-color: #000;
 }
 
 #hash-connect-modal {
@@ -64,12 +36,11 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
+    background-color: rgba(0, 0, 0, 0.8);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 999;
-    backdrop-filter: blur(5px);
 }
 
 #hash-connect-modal-content {
@@ -87,7 +58,7 @@
     border-radius: 10px;
 }
 
-#close-button {
+#hash-connect-close-button {
     position: absolute;
     font-size: 1.5rem;
     top: 10px;
@@ -99,7 +70,7 @@
     transition: transform 0.2s ease;
 }
 
-#close-button:hover {
+#hash-connect-close-button:hover {
     transform: rotate(160deg);
 }
 

@@ -22,12 +22,7 @@ export default function handleHashConnect(
 
     const profileWrapper = document.getElementById("hash-connect-profile");
     if (profileWrapper) {
-        const content = `<div id="hash-connect-disconnect-div">
-                           <span id="hash-connect-disconnect-span">${formatAddress(
-                               data.address
-                           )}</span>
-                           <button id="hash-connect-disconnect-btn">Disconnect</button>
-                         </div>`;
+        const content = `<button id="hash-connect-disconnect-btn">DISCONNECT</button>`;
         profileWrapper.innerHTML = content;
 
         document.getElementById("hash-connect-disconnect-btn")!.onclick =

@@ -11,7 +11,7 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
 
     modal.innerHTML = `
           <div id="hash-connect-modal-content">
-              <button id="close-button">✕</button>
+              <button id="hash-connect-close-button">✕</button>
               <div id="hash-connect-content">
                 <h1>Hass Pass</h1>
                 <h2>Connect</h2>
@@ -27,10 +27,12 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
       `;
     body.appendChild(modal);
 
-    document.getElementById("close-button")!.addEventListener("click", () => {
-        closeModalDisconnect();
-        onClose();
-    });
+    document
+        .getElementById("hash-connect-close-button")!
+        .addEventListener("click", () => {
+            closeModalDisconnect();
+            onClose();
+        });
     onReady();
 };
 
