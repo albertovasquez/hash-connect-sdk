@@ -11,9 +11,18 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
 
     modal.innerHTML = `
           <div id="hash-connect-modal-content">
-              <button id="close-button">X</button>
-              <h2>HASS PASS</h2>
-              <div id="hash-connect-qrcode"></div>
+              <button id="close-button">✕</button>
+              <div id="hash-connect-content">
+                <h1>Hass Pass</h1>
+                <h2>Connect</h2>
+                <div id="hash-connect-qrcode"></div>
+                <div id="hash-connect-modal-footer">
+                    Disclaimer: You grant this site access to your authentication with Hash Pass. We are not liable for any misuse or unauthorized use by this site or its agents.                     
+                </div>
+              </div>              
+              <div id="hash-connect-logo">
+                <img src="https://static.wixstatic.com/media/1c3ebd_9660355aa2644311ab42dfaece940db0~mv2.png/v1/fill/w_166,h_19,al_c,q_85,usm_0.66_1.00_0.01,enc_auto/1c3ebd_9660355aa2644311ab42dfaece940db0~mv2.png" alt="Hash Pass" />
+              </div>
           </div>
       `;
     body.appendChild(modal);

@@ -1,105 +1,146 @@
-* {
-  color: #3c3b3b;
-  font-weight: 800;
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+
+#hash-connect {
+    font-family: "Montserrat", sans-serif;
+    color: #3c3b3b;
+    font-weight: 800;
 }
 
 #hash-connect-btn {
-  display: none;
-  background-color: white;
-  width: 250px;
-  height: 45px;
-  padding: 10px 20px;
-  font-size: 0.7rem;
-  border: 1px solid #a0a0a04d;
-  cursor: pointer;
-  float: right;
-  margin-right: 20px;
+    display: none;
+    background-color: white;
+    width: 250px;
+    height: 45px;
+    padding: 10px 20px;
+    font-size: 0.7rem;
+    border: 1px solid #a0a0a04d;
+    cursor: pointer;
+    float: right;
+    margin-right: 20px;
 }
 
 #hash-connect-btn:hover {
-  border: 1px solid #2ebaae;
-  color: #2ebaae;
+    border: 1px solid #2ebaae;
+    color: #2ebaae;
 }
 
 #hash-connect-disconnect-div {
-  background-color: white;
-  width: 250px;
-  height: 45px;
-  float: right;
-  padding: 10px 20px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid #a0a0a04d;
+    background-color: white;
+    width: 250px;
+    height: 45px;
+    float: right;
+    padding: 10px 20px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid #a0a0a04d;
 }
 
 #hash-connect-disconnect-span {
-  margin-right: 10px;
+    margin-right: 10px;
 }
 
 #hash-connect-disconnect-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 10px;
-  border: #a0a0a04d 1px solid;
-  border-radius: 50px;
-  padding: 7px 25px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+    border: #a0a0a04d 1px solid;
+    border-radius: 50px;
+    padding: 7px 25px;
 }
 
 #hash-connect-disconnect-btn:hover,
 #hash-connect-disconnect-div:hover {
-  color: #2ebaae;
-  border: 1px solid #2ebaae;
+    color: #2ebaae;
+    border: 1px solid #2ebaae;
 }
 
 #hash-connect-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 999;
-  backdrop-filter: blur(5px);
+    font-family: "Montserrat", sans-serif;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+    backdrop-filter: blur(5px);
 }
 
 #hash-connect-modal-content {
-  background-color: #fff;
-  padding: 50px;
-  border-radius: 10px;
-  width: 320px;
-  position: relative;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    background-color: #182340;
+    padding: 50px;
+    border-radius: 10px;
+    width: 320px;
+    position: relative;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+#hash-connect-content {
+    padding: 50px;
+    background-color: #eaeef7;
+    border-radius: 10px;
 }
 
 #close-button {
-  position: absolute;
-  font-size: 1.5rem;
-  top: 10px;
-  right: 10px;
-  border: none;
-  background-color: transparent;
-  cursor: pointer;
-  transition: transform 0.2s ease;
+    position: absolute;
+    font-size: 1.5rem;
+    top: 10px;
+    right: 10px;
+    border: none;
+    color: white;
+    background-color: transparent;
+    cursor: pointer;
+    transition: transform 0.2s ease;
 }
 
 #close-button:hover {
-  transform: rotate(160deg);
+    transform: rotate(160deg);
+}
+
+#hash-connect-modal h1 {
+    text-align: center;
+    margin-top: 0;
+    font-weight: 300;
+    font-size: xx-large;
+    margin: 0;
+}
+
+#hash-connect-modal-footer {
+    margin-top: 30px;
+    font-weight: 200;
+    font-size: small;
+    justify-content: center;
+    margin-left: 20px;
 }
 
 #hash-connect-modal h2 {
-  text-align: center;
-  margin-top: 0;
-  font-weight: 500;
+    text-align: center;
+    margin-top: 0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 4.4px;
+    font-size: x-large;
 }
 
 #hash-connect-qrcode {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
+    background-color: white;
+    padding: 10px;
+    margin-left: 35px;
+    width: 130px;
+}
+
+#hash-connect-logo {
+    display: flex;
+    position: absolute;
+    align-self: center;
+    margin-top: 25px;
+    height: 10px;
+    transform: translate(-50%, -50%);
+    left: 50%;
 }
