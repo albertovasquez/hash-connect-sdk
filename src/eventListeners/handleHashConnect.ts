@@ -5,9 +5,6 @@ export default function handleHashConnect(
     setToken: (accessToken: string, refreshToken: string) => void,
     onDisconnect: () => void
 ) {
-    const formatAddress = (address: string) => {
-        return `${address.slice(0, 4)}...${address.slice(-4)}`;
-    };
 
     localStorage.setItem("hc:accessToken", data.accessToken);
     localStorage.setItem("hc:refreshToken", data.refreshToken);
@@ -24,11 +21,14 @@ export default function handleHashConnect(
     if (profileWrapper) {
         const content = `<button id="hash-connect-disconnect-btn">DISCONNECT</button>`;
         profileWrapper.innerHTML = content;
-
+        if (window.location.pathname !== '/panel.html') {
+            window.location.href = '/panel.html';
+        }
         document.getElementById("hash-connect-disconnect-btn")!.onclick =
             () => {
                 closeModalDisconnect();
                 onDisconnect();
+                window.location.href = '/index.html';
             };
     }
 

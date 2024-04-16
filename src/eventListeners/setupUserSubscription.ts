@@ -1,5 +1,3 @@
-import getTokens from "../utils/auth";
-
 const onConnectToUserChannel = (
     userChannel: {
         trigger: (eventName: string, payload: any) => void;

@@ -5,7 +5,10 @@ const config = {
   entry: './src/index.ts',
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'bundle.js'
+    filename: 'hash-connect.js',
+    library: "connect",
+    libraryTarget: "umd",
+    globalObject: 'this'
   },
   module: {
     rules: [

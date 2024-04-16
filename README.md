@@ -25,7 +25,7 @@ npm run build-dev
 ## Running
 
 ```sh
-node dist/bundle.js
+node dist/hash-connect.js
 ```
 
 ## Credits
