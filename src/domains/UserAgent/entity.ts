@@ -129,6 +129,10 @@ const makeUserAgent = ({
   }
 
   return Object.freeze({
+    isReady: () => {
+      return isConnected;
+    },
+
     getToken: async () => {
       if (!isConnected) {
         console.warn("Not connected");
