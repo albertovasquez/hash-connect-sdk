@@ -1,4 +1,5 @@
 import { closeModal, closeModalDisconnect } from "../utils/modal";
+import translation from "../utils/translation";
 
 export default function handleHashConnect(
   data: { address: string; accessToken: string; refreshToken: string },
@@ -18,7 +19,11 @@ export default function handleHashConnect(
 
   const profileWrapper = document.getElementById("hash-connect-profile");
   if (profileWrapper) {
-    const content = `<button id="hash-connect-disconnect-btn">DISCONNECT</button>`;
+    const content = `<button id="hash-connect-disconnect-btn">
+    <span id="hash-connect-disconnect-btn-span">${translation.translate(
+      "disconnect"
+    )}</span>
+    </button>`;
 
     const connectEvent = new CustomEvent("hash-connect-event", {
       detail: {

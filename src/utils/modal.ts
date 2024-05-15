@@ -1,3 +1,5 @@
+import translation from "./translation";
+
 export const openModal = (onReady: () => void, onClose: () => void) => {
     const isConnectedAlready = localStorage.getItem("hc:sessionId");
     if (isConnectedAlready) {
@@ -17,7 +19,7 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
                 <h2>Connect</h2>
                 <div id="hash-connect-qrcode"></div>
                 <div id="hash-connect-modal-footer">
-                    Disclaimer: You grant this site access to your authentication with Hash Pass. We are not liable for any misuse or unauthorized use by this site or its agents.                     
+                    ${translation.translate("disclaimer")}
                 </div>
               </div>              
               <div id="hash-connect-logo">

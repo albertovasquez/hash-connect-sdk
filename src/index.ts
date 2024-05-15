@@ -1,5 +1,6 @@
 import "./styles.css";
 import UserAgent from "./domains/UserAgent";
+import translation from "./utils/translation";
 
 // Function to create and append a profile div to the wrapper
 function createProfileDiv(wrapper: HTMLElement) {
@@ -12,7 +13,10 @@ function createProfileDiv(wrapper: HTMLElement) {
 function createConnectButton(wrapper: HTMLElement) {
     const button = document.createElement("button");
     button.id = "hash-connect-btn";
-    button.textContent = "CONNECT";
+    const span = document.createElement("span");
+    span.id="hash-connect-btn-span"
+    span.textContent = translation.translate("connect");
+    button.appendChild(span);
     button.addEventListener("click", async () => {
         // Safely accessing HASHConnect.connect using optional chaining
         window.HASHConnect?.connect?.();
