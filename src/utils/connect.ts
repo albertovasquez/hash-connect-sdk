@@ -79,7 +79,10 @@ export default function connect({
                         hasAccessToken: !!data.accessToken,
                         hasRefreshToken: !!data.refreshToken
                     });
+                    
+                    console.log('[Pusher] Calling handleHashConnect...');
                     handleHashConnect(data, setToken, onDisconnect);
+                    console.log('[Pusher] ✅ handleHashConnect completed');
                 } catch (error) {
                     console.error("[Pusher] Error handling authorization:", error);
                 }

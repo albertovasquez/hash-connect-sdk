@@ -103,9 +103,35 @@ const makeUserAgent = ({
   const connect = async () => {
     console.log('[UserAgent] connect() called');
     
+    // Check if session was cleared (e.g., by React disconnect)
+    const storedSessionId = storage.getItem("hc:sessionId");
+    if (sessionId && !storedSessionId) {
+      console.log('[UserAgent] Session was cleared externally, resetting state...');
+      // Reset state
+      sessionId = null;
+      QRCodeString = null;
+      SessionChannelName = null;
+      isConnected = false;
+      isConnecting = false;
+      profile = {
+        address: null,
+        signature: null,
+        accessToken: null,
+        refreshToken: null,
+      };
+    }
+    
+    console.log('[UserAgent] Current state:', { isConnected, isConnecting, hasSessionId: !!sessionId });
+    
     // Guard against multiple simultaneous connection attempts
     if (isConnected || isConnecting) {
-      console.warn("[UserAgent] Already connected or connecting", { isConnected, isConnecting });
+      console.warn("[UserAgent] ⚠️ Connection blocked! Already connected or connecting", { 
+        isConnected, 
+        isConnecting,
+        sessionId: sessionId ? `${sessionId.substring(0, 8)}...` : null,
+        hasStoredSession: !!storage.getItem("hc:sessionId")
+      });
+      console.warn("[UserAgent] 💡 Tip: If stuck, clear localStorage and refresh the page");
       return;
     }
 
@@ -269,10 +295,16 @@ const makeUserAgent = ({
         
         // Defer connection until page is fully loaded
         const attemptAutoConnect = () => {
-          console.log("[HashConnect] Attempting auto-connect...");
+          console.log("[HashConnect] Attempting auto-connect with stored session...");
           connect().catch(error => {
-            console.error("[HashConnect] Error auto-connecting:", error);
-            console.log("[HashConnect] You may need to manually reconnect");
+            console.error("[HashConnect] ❌ Auto-connect failed:", error);
+            console.log("[HashConnect] Cleaning up failed session...");
+            
+            // Clean up the failed session so manual connect can work
+            isConnecting = false;
+            isConnected = false;
+            
+            console.log("[HashConnect] You can now manually reconnect");
           });
         };
 

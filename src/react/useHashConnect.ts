@@ -58,31 +58,16 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
   useEffect(() => {
     log('Hook mounted, initializing...');
     
-    // Load SDK script only once
+    // SDK should already be initialized via the react module import
     if (!scriptLoadedRef.current) {
-      const existingScript = document.querySelector('script[src*="hash-connect"]');
-      if (!existingScript) {
-        log('SDK script not found, loading from CDN...');
-        const script = document.createElement("script");
-        script.src = "https://unpkg.com/@hashpass/connect/dist/hash-connect.js";
-        script.async = true;
-        
-        script.onload = () => {
-          log('✅ SDK script loaded successfully');
-          log('HASHConnect available:', !!window.HASHConnect);
-          if (window.HASHConnect) {
-            log('HASHConnect methods:', Object.keys(window.HASHConnect));
-          }
-        };
-        
-        script.onerror = (error) => {
-          logError('❌ Failed to load SDK script:', error);
-        };
-        
-        document.body.appendChild(script);
+      log('HASHConnect available:', !!window.HASHConnect);
+      
+      if (window.HASHConnect) {
+        log('HASHConnect methods:', Object.keys(window.HASHConnect));
       } else {
-        log('SDK script already exists in DOM');
+        logError('❌ HASHConnect SDK not initialized. Make sure you imported from @hashpass/connect/react');
       }
+      
       scriptLoadedRef.current = true;
     }
 
@@ -177,15 +162,43 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
 
   const disconnect = useCallback(() => {
     log('🔌 Disconnect method called');
-    const disconnectBtn = document.getElementById("hash-connect-disconnect-btn");
     
-    if (disconnectBtn) {
-      log('✅ Found disconnect button, clicking it...');
-      disconnectBtn.click();
-    } else {
-      logError('❌ Disconnect button not found in DOM');
+    // For React users, we need to:
+    // 1. Clear storage (UserAgent will detect this on next connect and reset its state)
+    // 2. Dispatch the event to update React state
+    try {
+      log('Cleaning up connection state...');
+      
+      // Check if vanilla JS disconnect button exists
+      const disconnectBtn = document.getElementById("hash-connect-disconnect-btn");
+      if (disconnectBtn) {
+        log('Found vanilla JS disconnect button, using it...');
+        disconnectBtn.click();
+      } else {
+        log('No vanilla JS button, manually cleaning up...');
+        
+        // Clear storage
+        localStorage.removeItem('hc:sessionId');
+        localStorage.removeItem('hc:address');
+        localStorage.removeItem('hc:accessToken');
+        localStorage.removeItem('hc:refreshToken');
+        localStorage.removeItem('hc:signature');
+        
+        // Dispatch disconnected event
+        const event = new CustomEvent('hash-connect-event', {
+          detail: {
+            eventType: 'disconnected',
+            user: null
+          }
+        });
+        document.dispatchEvent(event);
+      }
+      
+      log('✅ Disconnected successfully');
+    } catch (error) {
+      logError('❌ Error during disconnect:', error);
     }
-  }, [debug]);
+  }, [debug, log, logError]);
 
   const getToken = useCallback(async () => {
     log('🎫 getToken called');

@@ -75,6 +75,7 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
 
 export const closeModalDisconnect = () => {
     try {
+        console.log('[Modal] closeModalDisconnect called - cleaning up session');
         storage.removeItem("hc:sessionId");
         storage.removeItem("hc:accessToken");
         storage.removeItem("hc:refreshToken");
@@ -92,6 +93,21 @@ export const closeModalDisconnect = () => {
             btn.removeAttribute("disabled");
             btn.style.display = "block";
         }
+
+        // Dispatch disconnected event to update React state
+        console.log('[Modal] Dispatching disconnected event to reset loading state');
+        const event = new CustomEvent('hash-connect-event', {
+            detail: {
+                eventType: 'disconnected',
+                user: null
+            }
+        });
+        
+        // Small delay to ensure cleanup is complete before dispatching
+        setTimeout(() => {
+            document.dispatchEvent(event);
+            console.log('[Modal] ✅ Disconnected event dispatched to reset React state');
+        }, 10);
     } catch (error) {
         console.error("Error in closeModalDisconnect:", error);
     }

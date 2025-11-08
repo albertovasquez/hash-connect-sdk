@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HashConnect SDK - Debug Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+        .status.disconnected {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+        }
+        .status.connected {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            color: #155724;
+        }
+        .status.loading {
+            background: #d1ecf1;
+            border: 1px solid #17a2b8;
+            color: #0c5460;
+        }
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #dc3545;
+            color: #721c24;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        button:hover:not(:disabled) {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #0066cc;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .console-notice {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .console-notice strong {
+            color: #d39e00;
+            font-size: 18px;
+        }
+        .details {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .debug-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #dee2e6;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 HashConnect SDK Debug Test</h1>
+        <p>This page helps you test and debug the HashConnect SDK integration.</p>
+        
+        <div class="console-notice">
+            <strong>📋 Important:</strong> Open your browser's Developer Console (F12 or Cmd+Option+I on Mac) 
+            to see detailed debug logs!
+        </div>
+
+        <div id="status" class="status disconnected">
+            ⭕ Status: Disconnected
+        </div>
+
+        <div id="details" class="details" style="display: none;">
+            <div><strong>User Address:</strong> <span id="user-address">-</span></div>
+            <div style="margin-top: 10px;"><strong>Loading:</strong> <span id="loading-status">false</span></div>
+            <div style="margin-top: 10px;"><strong>Error:</strong> <span id="error-message">None</span></div>
+        </div>
+
+        <div>
+            <button id="connect-btn" onclick="testConnect()">🔗 Connect</button>
+            <button id="disconnect-btn" onclick="testDisconnect()" disabled>🔌 Disconnect</button>
+            <button onclick="checkSDK()">🔍 Check SDK Status</button>
+            <button onclick="clearStorage()">🗑️ Clear Storage</button>
+        </div>
+
+        <div class="info-box">
+            <strong>What to look for in the console:</strong>
+            <ul>
+                <li><code>[HashConnectProvider]</code> or <code>[useHashConnect]</code> - React component logs</li>
+                <li><code>[UserAgent]</code> - Core SDK connection logic</li>
+                <li><code>[Modal]</code> - QR modal opening/closing</li>
+                <li><code>[Pusher]</code> - WebSocket events</li>
+                <li>✅ Success indicators</li>
+                <li>❌ Error messages</li>
+            </ul>
+        </div>
+
+        <div class="debug-section">
+            <h2>Debug Commands</h2>
+            <p>Run these in your browser console to inspect the SDK state:</p>
+            <pre style="background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 5px; overflow-x: auto;">
+// Check if SDK is loaded
+console.log('SDK loaded:', !!window.HASHConnect);
+
+// Check SDK methods
+console.log('SDK methods:', window.HASHConnect ? Object.keys(window.HASHConnect) : 'N/A');
+
+// Check if SDK is ready
+console.log('SDK ready:', window.HASHConnect?.isReady());
+
+// Get current user
+console.log('Current user:', window.HASHConnect?.getUser());
+
+// Check session storage
+console.log('Session ID:', localStorage.getItem('hc:sessionId'));
+console.log('Address:', localStorage.getItem('hc:address'));
+console.log('Access Token:', localStorage.getItem('hc:accessToken') ? 'Present' : 'None');
+
+// Check DOM elements
+console.log('Modal exists:', !!document.getElementById('hash-connect-modal'));
+console.log('QR div exists:', !!document.getElementById('hash-connect-qrcode'));</pre>
+        </div>
+
+        <div class="debug-section">
+            <h2>Common Issues</h2>
+            
+            <h3>❌ Modal Not Appearing</h3>
+            <p><strong>Look for:</strong> <code>[Modal] Body element not found</code></p>
+            <p><strong>Fix:</strong> Ensure page has a &lt;body&gt; tag and is fully loaded.</p>
+            
+            <h3>❌ QR Code Not Showing</h3>
+            <p><strong>Look for:</strong> <code>[UserAgent] QR code div not found in DOM</code></p>
+            <p><strong>Fix:</strong> Modal might have been closed too quickly. Check event handlers.</p>
+            
+            <h3>❌ SDK Not Loading</h3>
+            <p><strong>Look for:</strong> <code>Failed to load SDK script</code></p>
+            <p><strong>Fix:</strong> Check network connection and CDN availability.</p>
+        </div>
+    </div>
+
+    <!-- Include HashConnect SDK -->
+    <script src="https://unpkg.com/@hashpass/connect/dist/hash-connect.js"></script>
+    
+    <script>
+        let isConnected = false;
+        let isLoading = false;
+
+        // Listen for connection events
+        document.addEventListener('hash-connect-event', (event) => {
+            console.log('📨 Received hash-connect-event:', event.detail);
+            
+            const { eventType, user } = event.detail;
+            
+            if (eventType === 'connected') {
+                isConnected = true;
+                isLoading = false;
+                updateUI(user);
+            } else if (eventType === 'disconnected') {
+                isConnected = false;
+                isLoading = false;
+                updateUI(null);
+            }
+        });
+
+        // Wait for SDK to load
+        window.addEventListener('load', () => {
+            console.log('🚀 Page loaded, checking SDK...');
+            checkSDKInterval = setInterval(() => {
+                if (window.HASHConnect) {
+                    console.log('✅ HASHConnect SDK is available!');
+                    console.log('SDK methods:', Object.keys(window.HASHConnect));
+                    clearInterval(checkSDKInterval);
+                }
+            }, 100);
+        });
+
+        function testConnect() {
+            console.log('🔗 User clicked Connect button');
+            console.log('Checking if HASHConnect is available...');
+            
+            if (!window.HASHConnect) {
+                console.error('❌ HASHConnect SDK not loaded yet');
+                alert('SDK not loaded yet. Please wait a moment and try again.');
+                return;
+            }
+
+            console.log('✅ HASHConnect available, calling connect()...');
+            isLoading = true;
+            updateUI(null);
+            
+            window.HASHConnect.connect().then(() => {
+                console.log('✅ Connect promise resolved');
+            }).catch((error) => {
+                console.error('❌ Connect error:', error);
+                isLoading = false;
+                updateUI(null, error.message);
+            });
+        }
+
+        function testDisconnect() {
+            console.log('🔌 User clicked Disconnect button');
+            const disconnectBtn = document.getElementById('hash-connect-disconnect-btn');
+            if (disconnectBtn) {
+                console.log('✅ Found disconnect button, clicking...');
+                disconnectBtn.click();
+            } else {
+                console.error('❌ Disconnect button not found in DOM');
+            }
+        }
+
+        function checkSDK() {
+            console.log('--- SDK Status Check ---');
+            console.log('SDK loaded:', !!window.HASHConnect);
+            if (window.HASHConnect) {
+                console.log('SDK methods:', Object.keys(window.HASHConnect));
+                console.log('SDK ready:', window.HASHConnect.isReady?.());
+                console.log('Current user:', window.HASHConnect.getUser?.());
+            }
+            console.log('Session ID:', localStorage.getItem('hc:sessionId'));
+            console.log('Address:', localStorage.getItem('hc:address'));
+            console.log('Modal exists:', !!document.getElementById('hash-connect-modal'));
+            console.log('QR div exists:', !!document.getElementById('hash-connect-qrcode'));
+            console.log('--- End Status Check ---');
+            
+            alert('Check your browser console for detailed SDK status!');
+        }
+
+        function clearStorage() {
+            console.log('🗑️ Clearing localStorage...');
+            localStorage.removeItem('hc:sessionId');
+            localStorage.removeItem('hc:address');
+            localStorage.removeItem('hc:accessToken');
+            localStorage.removeItem('hc:refreshToken');
+            localStorage.removeItem('hc:signature');
+            console.log('✅ Storage cleared');
+            
+            isConnected = false;
+            isLoading = false;
+            updateUI(null);
+            
+            alert('Storage cleared! Refresh the page to start fresh.');
+        }
+
+        function updateUI(userAddress, error = null) {
+            const statusDiv = document.getElementById('status');
+            const detailsDiv = document.getElementById('details');
+            const connectBtn = document.getElementById('connect-btn');
+            const disconnectBtn = document.getElementById('disconnect-btn');
+            
+            // Update status
+            if (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Error: ' + error;
+            } else if (isLoading) {
+                statusDiv.className = 'status loading';
+                statusDiv.textContent = '⏳ Connecting...';
+            } else if (isConnected && userAddress) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = '✅ Connected!';
+                detailsDiv.style.display = 'block';
+                document.getElementById('user-address').textContent = userAddress;
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = '⭕ Disconnected';
+                detailsDiv.style.display = 'none';
+            }
+            
+            // Update details
+            document.getElementById('loading-status').textContent = isLoading;
+            document.getElementById('error-message').textContent = error || 'None';
+            
+            // Update buttons
+            connectBtn.disabled = isConnected || isLoading;
+            disconnectBtn.disabled = !isConnected;
+        }
+    </script>
+</body>
+</html>
+
