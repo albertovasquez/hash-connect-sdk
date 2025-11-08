@@ -1,0 +1,33 @@
+# Source files
+src/
+webpack.config.js
+tsconfig.json
+
+# Development files
+node_modules/
+.git/
+.gitignore
+
+# Documentation that shouldn't be published
+CHANGES_SUMMARY.md
+STABILITY_IMPROVEMENTS.md
+
+# Development artifacts
+*.log
+npm-debug.log*
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test files
+test/
+tests/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+

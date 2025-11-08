@@ -1,26 +1,79 @@
 {
-  "name": "hash-connect",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "scripts": {
-    "clean": "rm dist/hash-connect.js",
-    "build-dev": "webpack --mode development --watch",
-    "build-prod": "webpack --mode production"
+  "name": "@hashpass/connect",
+  "version": "1.0.3",
+  "description": "HashConnect SDK - Secure authentication and wallet integration for web applications",
+  "main": "dist/hash-connect.js",
+  "types": "types/global.d.ts",
+  "typesVersions": {
+    "*": {
+      "react": ["./dist/react/index.d.ts"],
+      "*": ["./types/global.d.ts"]
+    }
   },
-  "dependencies": {},
+  "exports": {
+    ".": {
+      "types": "./types/global.d.ts",
+      "default": "./dist/hash-connect.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react.js"
+    }
+  },
+  "files": [
+    "dist",
+    "types",
+    "README.md",
+    "REACT.md"
+  ],
+  "keywords": [
+    "hashconnect",
+    "wallet",
+    "authentication",
+    "web3",
+    "blockchain",
+    "hash-pass",
+    "pusher",
+    "qrcode"
+  ],
+  "author": "BitLabs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitlabs/hash-connect-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bitlabs/hash-connect-sdk/issues"
+  },
+  "homepage": "https://github.com/bitlabs/hash-connect-sdk#readme",
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run build-prod",
+    "build-dev": "webpack --mode development --watch",
+    "build-prod": "npm run clean && webpack --mode production && webpack --config webpack.react.config.js --mode production",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "webpack": "^5.91.0",
-    "webpack-cli": "^5.1.4",
-    "babel-loader": "^9.1.3",
     "@babel/core": "^7.24.4",
     "@babel/preset-env": "^7.24.4",
+    "@types/react": "^19.2.2",
+    "babel-loader": "^9.1.3",
     "css-loader": "^7.1.0",
     "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.1",
     "typescript": "^5.4.4",
-    "ts-loader": "^9.5.1"
+    "webpack": "^5.91.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
