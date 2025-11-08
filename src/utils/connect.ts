@@ -47,6 +47,7 @@ export default function connect({
         const profile = getProfile();
 
         if (storedAddress != null && storedToken != null && profile.address && profile.accessToken) {
+            console.log("[HashConnect] Auto-reconnecting with stored credentials...");
             openModal();
             handleHashConnect(
                 {
@@ -59,6 +60,7 @@ export default function connect({
             );
             return;
         } else {
+            console.log("[HashConnect] No stored credentials, starting new connection flow...");
             storage.removeItem("hc:sessionId");
             openModal();
         }

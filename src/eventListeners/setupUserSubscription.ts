@@ -79,11 +79,28 @@ export default function setupUserSubscription(
         console.log(`[Pusher] Subscribing to user channel: ${userChannelName}`);
         const userChannel = pusherClient.subscribe(userChannelName);
         
+        let messageAttempted = false; // Prevent duplicate attempts
+        
         console.log(`[Pusher] Binding to event: pusher:subscription_succeeded on ${userChannelName}`);
         userChannel.bind("pusher:subscription_succeeded", () => {
             console.log(`[Pusher] ✅ Subscription succeeded: ${userChannelName}`);
-            onConnectToUserChannel(userChannel, userProfile, SessionChannelName);
+            if (!messageAttempted) {
+                messageAttempted = true;
+                // Small delay to ensure channel is fully ready before sending messages
+                setTimeout(() => {
+                    onConnectToUserChannel(userChannel, userProfile, SessionChannelName);
+                }, 100);
+            }
         });
+        
+        // Add timeout fallback in case subscription never succeeds (e.g., network issues)
+        setTimeout(() => {
+            if (!messageAttempted) {
+                messageAttempted = true;
+                console.warn(`[Pusher] ⚠️  Subscription timeout for ${userChannelName}, attempting to send anyway...`);
+                onConnectToUserChannel(userChannel, userProfile, SessionChannelName);
+            }
+        }, 5000);
     } catch (error) {
         console.error("Error setting up user subscription:", error);
     }

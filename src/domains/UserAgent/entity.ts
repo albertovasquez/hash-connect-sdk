@@ -82,6 +82,11 @@ const makeUserAgent = ({
         }
       }
       
+      // Reset session state to allow fresh connection
+      sessionId = null;
+      QRCodeString = null;
+      SessionChannelName = null;
+      
       isConnected = false;
       isConnecting = false;
       profile = {
@@ -105,13 +110,16 @@ const makeUserAgent = ({
     isConnecting = true;
 
     try {
+      // Initialize pusher client if needed
       if (pusherClient === null) {
         pusherClient = await getPusherClient();
-        if (!sessionId) {
-          sessionId = Math.random().toString(36).slice(2);
-          QRCodeString = `hc:${sessionId}`;
-          SessionChannelName = `private-hc-${sessionId}`;
-        }
+      }
+      
+      // Always generate a new session ID if one doesn't exist (e.g., after disconnect)
+      if (!sessionId) {
+        sessionId = Math.random().toString(36).slice(2);
+        QRCodeString = `hc:${sessionId}`;
+        SessionChannelName = `private-hc-${sessionId}`;
       }
 
       if (_connect) {
@@ -212,19 +220,43 @@ const makeUserAgent = ({
   };
 
   // CHECK IF ANY DATA IN LOCAL STORAGE
-  try {
-    const storedSessionId = storage.getItem("hc:sessionId");
-    if (storedSessionId) {
-      sessionId = storedSessionId;
-      QRCodeString = `hc:${sessionId}`;
-      SessionChannelName = `private-hc-${sessionId}`;
-      connect().catch(error => {
-        console.error("Error auto-connecting:", error);
-      });
+  // Auto-connect will be deferred until after page load for better reliability
+  const initializeStoredSession = () => {
+    try {
+      const storedSessionId = storage.getItem("hc:sessionId");
+      if (storedSessionId) {
+        console.log("[HashConnect] Found stored session, preparing to auto-connect...");
+        sessionId = storedSessionId;
+        QRCodeString = `hc:${sessionId}`;
+        SessionChannelName = `private-hc-${sessionId}`;
+        
+        // Defer connection until page is fully loaded
+        const attemptAutoConnect = () => {
+          console.log("[HashConnect] Attempting auto-connect...");
+          connect().catch(error => {
+            console.error("[HashConnect] Error auto-connecting:", error);
+            console.log("[HashConnect] You may need to manually reconnect");
+          });
+        };
+
+        // Wait for page to be fully loaded
+        if (document.readyState === 'complete') {
+          // Page already loaded, connect with small delay to ensure everything is ready
+          setTimeout(attemptAutoConnect, 100);
+        } else {
+          // Wait for page load
+          window.addEventListener('load', () => {
+            setTimeout(attemptAutoConnect, 100);
+          });
+        }
+      }
+    } catch (error) {
+      console.error("[HashConnect] Error checking for stored session:", error);
     }
-  } catch (error) {
-    console.error("Error checking for stored session:", error);
-  }
+  };
+
+  // Initialize stored session check
+  initializeStoredSession();
 
   return Object.freeze({
     isReady: () => {
