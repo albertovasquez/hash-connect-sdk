@@ -1,26 +1,20 @@
 // global.d.ts
+import { QRCodeConstructor } from '../src/types/qrcode';
+import { PusherClient } from '../src/types/pusher';
+
 export {}; // Ensure this file is treated as a module
 
-type IHashConnect = {
-    connect: any;
-    openModal: () => void;
-    setIsConnected: (value: boolean) => void;
-    setPusherClient: (client: any) => void;
-    setQRCodeGenerator: (generator: any) => void;
-    isConnected: boolean;
-    SessionChannelName: string | null;
-    QRCodeString: string | null;
-    userProfile: {
-        address: string | null;
-        channel: string | null;
-        signature: string | null;
-    };
-};
+export interface IHashConnect {
+    connect: () => Promise<void>;
+    getToken: () => Promise<string | null>;
+    getUser: () => { address: string | null } | undefined;
+    isReady: () => boolean;
+}
 
 declare global {
     interface Window {
         HASHConnect: IHashConnect;
-        Pusher: any;
-        QRCode: any;
+        Pusher: new (key: string, config: any) => PusherClient;
+        QRCode: QRCodeConstructor;
     }
 }

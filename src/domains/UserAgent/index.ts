@@ -5,24 +5,33 @@ import makeUserAgent from "./entity";
 import { CONFIG } from "../../config";
 import { isExpired } from "../../utils/jwt";
 import getNewTokens from "../../utils/auth";
+import { PusherClient } from "../../types/pusher";
+import { QRCodeConstructor } from "../../types/qrcode";
 
-const getQrCodeGenerator = () => {
-  return new Promise((resolve, reject) => {
+const getQrCodeGenerator = async (): Promise<QRCodeConstructor> => {
+  return new Promise<QRCodeConstructor>((resolve, reject) => {
     loadScript(CONFIG.QR_CODE_SCRIPT, () => {
-      resolve(window.QRCode);
+      if (window.QRCode) {
+        resolve(window.QRCode);
+      } else {
+        reject(new Error("QRCode library not loaded"));
+      }
     });
-  }).catch((error) => console.error("Error loading QR Code script", error));
+  });
 };
 
-const getPusherClient = () => {
-  return new Promise((resolve, reject) => {
+const getPusherClient = async (): Promise<PusherClient> => {
+  return new Promise<PusherClient>((resolve, reject) => {
     loadScript(CONFIG.PUSHER_SCRIPT, () => {
       try {
+        if (!window.Pusher) {
+          throw new Error("Pusher library not loaded");
+        }
         const pusherInstance = new window.Pusher(CONFIG.PUSHER_KEY, {
           cluster: CONFIG.PUSHER_CLUSTER,
           authEndpoint: `${CONFIG.AUTH_ENDPOINT}/auth/pusher`,
         });
-        resolve(pusherInstance);
+        resolve(pusherInstance as PusherClient);
       } catch (error) {
         reject(error);
       }
