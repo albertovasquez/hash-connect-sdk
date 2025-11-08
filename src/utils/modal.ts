@@ -2,18 +2,25 @@ import translation from "./translation";
 import { storage } from "./storage";
 
 export const openModal = (onReady: () => void, onClose: () => void) => {
+    console.log('[Modal] openModal called');
+    
     try {
         const isConnectedAlready = storage.getItem("hc:sessionId");
+        console.log('[Modal] Checking existing session:', { hasSession: !!isConnectedAlready });
+        
         if (isConnectedAlready) {
+            console.log('[Modal] Already connected, showing connected buttons instead of modal');
             showConnectedButtons();
             return;
         }
 
         const body = document.getElementsByTagName("body")[0];
         if (!body) {
-            console.error("Body element not found");
+            console.error("[Modal] ❌ Body element not found");
             return;
         }
+        
+        console.log('[Modal] Body element found, creating modal...');
 
         const modal = document.createElement("div");
         modal.id = "hash-connect-modal";
@@ -35,24 +42,34 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
               </div>
           `;
         body.appendChild(modal);
+        console.log('[Modal] ✅ Modal element created and added to DOM');
 
         const closeButton = document.getElementById("hash-connect-close-button");
         if (closeButton) {
+            console.log('[Modal] ✅ Close button found, attaching click handler');
             closeButton.addEventListener("click", () => {
                 try {
+                    console.log('[Modal] Close button clicked');
                     closeModalDisconnect();
                     onClose();
                 } catch (error) {
-                    console.error("Error in close handler:", error);
+                    console.error("[Modal] Error in close handler:", error);
                 }
             });
+        } else {
+            console.error('[Modal] ❌ Close button not found');
         }
 
+        console.log('[Modal] Checking if onReady is a function:', typeof onReady === 'function');
         if (typeof onReady === 'function') {
+            console.log('[Modal] Calling onReady callback...');
             onReady();
+            console.log('[Modal] ✅ onReady callback completed');
+        } else {
+            console.error('[Modal] ❌ onReady is not a function:', onReady);
         }
     } catch (error) {
-        console.error("Error opening modal:", error);
+        console.error("[Modal] ❌ Error opening modal:", error);
     }
 };
 

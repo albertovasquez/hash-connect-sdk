@@ -101,28 +101,39 @@ const makeUserAgent = ({
   };
 
   const connect = async () => {
+    console.log('[UserAgent] connect() called');
+    
     // Guard against multiple simultaneous connection attempts
     if (isConnected || isConnecting) {
-      console.warn("Already connected or connecting");
+      console.warn("[UserAgent] Already connected or connecting", { isConnected, isConnecting });
       return;
     }
 
+    console.log('[UserAgent] Starting connection process...');
     isConnecting = true;
 
     try {
       // Initialize pusher client if needed
       if (pusherClient === null) {
+        console.log('[UserAgent] Pusher client not initialized, creating...');
         pusherClient = await getPusherClient();
+        console.log('[UserAgent] ✅ Pusher client initialized');
       }
       
       // Always generate a new session ID if one doesn't exist (e.g., after disconnect)
       if (!sessionId) {
+        console.log('[UserAgent] No session ID exists, generating new one...');
         sessionId = Math.random().toString(36).slice(2);
         QRCodeString = `hc:${sessionId}`;
         SessionChannelName = `private-hc-${sessionId}`;
+        console.log('[UserAgent] ✅ Session created:', { sessionId, QRCodeString, SessionChannelName });
+      } else {
+        console.log('[UserAgent] Using existing session:', { sessionId, SessionChannelName });
       }
 
+      console.log('[UserAgent] Checking if _connect function is provided...');
       if (_connect) {
+        console.log('[UserAgent] ✅ _connect function found, calling it...');
         _connect({
           openModal,
           pusherClient,
@@ -145,12 +156,14 @@ const makeUserAgent = ({
           },
           onDisconnect,
         });
+        console.log('[UserAgent] ✅ _connect function completed');
       } else {
         throw new Error("Connect function not provided");
       }
       isConnected = true;
+      console.log('[UserAgent] ✅ Connection completed successfully');
     } catch (error) {
-      console.error("Error during connection:", error);
+      console.error("[UserAgent] ❌ Error during connection:", error);
       isConnecting = false;
       throw error;
     } finally {
@@ -159,26 +172,37 @@ const makeUserAgent = ({
   };
 
   const openModal = async () => {
+    console.log('[UserAgent] openModal() called');
+    
     try {
       if (QRCodeString === null) {
-        console.error("QRCodeString is null, cannot open modal");
+        console.error("[UserAgent] ❌ QRCodeString is null, cannot open modal");
         return;
       }
       
+      console.log('[UserAgent] QRCodeString available:', QRCodeString);
+      
       if (qrCodeGenerator === null) {
+        console.log('[UserAgent] QR code generator not initialized, loading...');
         qrCodeGenerator = await getQrCodeGenerator();
         if (!qrCodeGenerator) {
-          console.error("Failed to load QR code generator");
+          console.error("[UserAgent] ❌ Failed to load QR code generator");
           return;
         }
+        console.log('[UserAgent] ✅ QR code generator loaded');
       }
 
       const onReady = (qrCodeGenerator: QRCodeConstructor) => {
         return () => {
+          console.log('[UserAgent] onReady callback executing...');
+          
           try {
             if (sessionId) {
+              console.log('[UserAgent] Storing session ID:', sessionId);
               storage.setItem("hc:sessionId", sessionId);
             }
+            
+            console.log('[UserAgent] Clearing old credentials from storage');
             storage.removeItem("hc:address");
             storage.removeItem("hc:accessToken");
             storage.removeItem("hc:refreshToken");
@@ -186,14 +210,22 @@ const makeUserAgent = ({
             
             const qrCodeDiv = document.getElementById("hash-connect-qrcode");
             if (!qrCodeDiv) {
-              console.error("QR code div not found");
+              console.error("[UserAgent] ❌ QR code div not found in DOM");
               return;
             }
             
+            console.log('[UserAgent] ✅ QR code div found');
+            
             if (!QRCodeString) {
-              console.error("QRCodeString is null");
+              console.error("[UserAgent] ❌ QRCodeString is null");
               return;
             }
+            
+            console.log('[UserAgent] Generating QR code with:', { 
+              text: QRCodeString, 
+              width: 128, 
+              height: 128 
+            });
             
             new qrCodeGenerator(qrCodeDiv, {
               text: QRCodeString,
@@ -203,19 +235,24 @@ const makeUserAgent = ({
               colorLight: "#ffffff",
               correctLevel: qrCodeGenerator.CorrectLevel.H,
             });
+            
+            console.log('[UserAgent] ✅ QR code generated successfully');
           } catch (error) {
-            console.error("Error rendering QR code:", error);
+            console.error("[UserAgent] ❌ Error rendering QR code:", error);
           }
         };
       };
 
+      console.log('[UserAgent] Checking if _openModal function is provided...');
       if (_openModal) {
+        console.log('[UserAgent] ✅ _openModal function found, calling it...');
         _openModal(onReady(qrCodeGenerator), onDisconnect);
+        console.log('[UserAgent] ✅ _openModal function completed');
       } else {
         throw new Error("OpenModal function not provided");
       }
     } catch (error) {
-      console.error("Error opening modal:", error);
+      console.error("[UserAgent] ❌ Error opening modal:", error);
     }
   };
 
