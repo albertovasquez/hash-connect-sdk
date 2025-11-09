@@ -25,6 +25,7 @@ export default function handleHashConnect(
     storage.setItem("hc:accessToken", data.accessToken);
     storage.setItem("hc:refreshToken", data.refreshToken);
     storage.setItem("hc:address", data.address);
+    storage.setItem("hc:clubId", data.clubId);
 
     setToken(data.accessToken, data.refreshToken);
 

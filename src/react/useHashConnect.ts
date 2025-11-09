@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { CONFIG } from '../config';
 
 interface HashConnectState {
   isConnected: boolean;
@@ -17,6 +18,7 @@ interface HashConnectState {
 
 export interface UseHashConnectOptions {
   debug?: boolean;
+  disclaimer?: string;
 }
 
 export interface UseHashConnectReturn {
@@ -31,7 +33,7 @@ export interface UseHashConnectReturn {
 }
 
 export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConnectReturn {
-  const { debug = false } = options;
+  const { debug = false, disclaimer } = options;
   
   const [state, setState] = useState<HashConnectState>({
     isConnected: false,
@@ -57,6 +59,12 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
 
   useEffect(() => {
     log('Hook mounted, initializing...');
+    
+    // Set custom disclaimer if provided
+    if (disclaimer) {
+      CONFIG.CUSTOM_DISCLAIMER = disclaimer;
+      log('Custom disclaimer set');
+    }
     
     // SDK should already be initialized via the react module import
     if (!scriptLoadedRef.current) {
@@ -183,6 +191,7 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
         localStorage.removeItem('hc:accessToken');
         localStorage.removeItem('hc:refreshToken');
         localStorage.removeItem('hc:signature');
+        localStorage.removeItem('hc:clubId');
         
         // Dispatch disconnected event
         const event = new CustomEvent('hash-connect-event', {

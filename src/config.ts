@@ -7,4 +7,5 @@ export const CONFIG = {
   PUSHER_SCRIPT: "https://js.pusher.com/8.0.1/pusher.min.js",
   DOMAIN: "localhost",
   APP_NAME: "Hash Pass Admin Panel",
+  CUSTOM_DISCLAIMER: null as string | null, // Custom disclaimer text
 };

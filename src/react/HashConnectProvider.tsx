@@ -6,6 +6,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { CONFIG } from "../config";
 
 interface HashConnectContextType {
   isConnected: boolean;
@@ -23,11 +24,13 @@ const HashConnectContext = createContext<HashConnectContextType | undefined>(
 export interface HashConnectProviderProps {
   children: React.ReactNode;
   debug?: boolean;
+  disclaimer?: string;
 }
 
 export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
   children,
   debug = false,
+  disclaimer,
 }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [userAddress, setUserAddress] = useState<string | null>(null);
@@ -47,6 +50,13 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
 
   useEffect(() => {
     log('Provider mounted, initializing...');
+    
+    // Set custom disclaimer if provided
+    if (disclaimer) {
+      CONFIG.CUSTOM_DISCLAIMER = disclaimer;
+      log('Custom disclaimer set');
+    }
+    
     log('HASHConnect available:', !!window.HASHConnect);
     
     if (window.HASHConnect) {
@@ -141,6 +151,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
           localStorage.removeItem('hc:accessToken');
           localStorage.removeItem('hc:refreshToken');
           localStorage.removeItem('hc:signature');
+          localStorage.removeItem('hc:clubId');
           
           // Dispatch disconnected event
           const event = new CustomEvent('hash-connect-event', {

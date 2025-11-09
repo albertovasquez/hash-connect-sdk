@@ -51,6 +51,7 @@ const makeUserAgent = ({
       profile.refreshToken = storage.getItem("hc:refreshToken");
       profile.signature = storage.getItem("hc:signature");
       profile.address = storage.getItem("hc:address");
+      profile.clubId = storage.getItem("hc:clubId");
     }
   } catch (error) {
     console.error("Error loading profile from storage:", error);
@@ -233,6 +234,7 @@ const makeUserAgent = ({
             storage.removeItem("hc:accessToken");
             storage.removeItem("hc:refreshToken");
             storage.removeItem("hc:signature");
+            storage.removeItem("hc:clubId");
             
             const qrCodeDiv = document.getElementById("hash-connect-qrcode");
             if (!qrCodeDiv) {

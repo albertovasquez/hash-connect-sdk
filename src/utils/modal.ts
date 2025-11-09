@@ -1,5 +1,6 @@
 import translation from "./translation";
 import { storage } from "./storage";
+import { CONFIG } from "../config";
 
 export const openModal = (onReady: () => void, onClose: () => void) => {
     console.log('[Modal] openModal called');
@@ -22,6 +23,9 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
         
         console.log('[Modal] Body element found, creating modal...');
 
+        // Use custom disclaimer if provided, otherwise use default translation
+        const disclaimerText = CONFIG.CUSTOM_DISCLAIMER || translation.translate("disclaimer");
+
         const modal = document.createElement("div");
         modal.id = "hash-connect-modal";
 
@@ -33,7 +37,7 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
                     <h2>Connect</h2>
                     <div id="hash-connect-qrcode"></div>
                     <div id="hash-connect-modal-footer">
-                        ${translation.translate("disclaimer")}
+                        ${disclaimerText}
                     </div>
                   </div>              
                   <div id="hash-connect-logo">
@@ -81,6 +85,7 @@ export const closeModalDisconnect = () => {
         storage.removeItem("hc:refreshToken");
         storage.removeItem("hc:address");
         storage.removeItem("hc:signature");
+        storage.removeItem("hc:clubId");
         closeModal();
         
         const profileWrapper = document.getElementById("hash-connect-profile");

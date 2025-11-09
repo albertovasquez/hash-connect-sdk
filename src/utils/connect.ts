@@ -54,6 +54,7 @@ export default function connect({
                     address: profile.address,
                     accessToken: profile.accessToken,
                     refreshToken: profile.refreshToken || '',
+                    clubId: profile.clubId || ''
                 },
                 setToken,
                 onDisconnect
