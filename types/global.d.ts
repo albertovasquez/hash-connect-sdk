@@ -8,6 +8,7 @@ export interface IHashConnect {
     connect: () => Promise<void>;
     getToken: () => Promise<string | null>;
     getUser: () => { address: string | null } | undefined;
+    getClubId: () => string | null;
     isReady: () => boolean;
 }
 

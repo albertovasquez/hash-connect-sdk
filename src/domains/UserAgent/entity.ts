@@ -371,6 +371,7 @@ const makeUserAgent = ({
         return null;
       }
     },
+    
     getUser: () => {
       if (!isConnected) {
         console.warn("Not connected");
@@ -384,6 +385,21 @@ const makeUserAgent = ({
       };
       return user;
     },
+    
+    getClubId: () => {
+      try {
+        const clubId = storage.getItem("hc:clubId");
+        if (!clubId) {
+          console.warn("No club ID available");
+          return null;
+        }
+        return clubId;
+      } catch (error) {
+        console.error("Error getting club ID:", error);
+        return null;
+      }
+    },
+    
     connect,
   });
 };

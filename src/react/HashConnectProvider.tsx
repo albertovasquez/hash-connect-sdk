@@ -15,6 +15,7 @@ interface HashConnectContextType {
   connect: () => Promise<void>;
   disconnect: () => void;
   getToken: () => Promise<string | null>;
+  getClubId: () => string | null;
   isLoading: boolean;
 }
 
@@ -182,6 +183,10 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     return window.HASHConnect?.getToken() || null;
   }, []);
 
+  const getClubId = useCallback(() => {
+    return window.HASHConnect?.getClubId() || null;
+  }, []);
+
   return (
     <HashConnectContext.Provider
       value={{
@@ -191,6 +196,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
         connect,
         disconnect,
         getToken,
+        getClubId,
         isLoading,
       }}
     >

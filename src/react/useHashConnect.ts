@@ -31,6 +31,7 @@ export interface UseHashConnectReturn {
   connect: () => Promise<void>;
   disconnect: () => void;
   getToken: () => Promise<string | null>;
+  getClubId: () => string | null;
   makeAuthRequest: <T>(url: string, options?: RequestInit) => Promise<T>;
 }
 
@@ -243,6 +244,26 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
     return token;
   }, [debug]);
 
+  const getClubId = useCallback(() => {
+    log('🏢 getClubId called');
+    
+    if (!window.HASHConnect) {
+      logError('❌ HASHConnect not available');
+      return null;
+    }
+    
+    log('Calling window.HASHConnect.getClubId()...');
+    const clubId = window.HASHConnect.getClubId();
+    
+    if (clubId) {
+      log('✅ Club ID retrieved successfully:', clubId);
+    } else {
+      log('ℹ️ No club ID available');
+    }
+    
+    return clubId;
+  }, [debug]);
+
   const makeAuthRequest = useCallback(
     async <T,>(url: string, options: RequestInit = {}): Promise<T> => {
       const token = await getToken();
@@ -274,6 +295,7 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
     connect,
     disconnect,
     getToken,
+    getClubId,
     makeAuthRequest,
   };
 }
