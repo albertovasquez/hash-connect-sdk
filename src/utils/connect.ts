@@ -73,6 +73,7 @@ export default function connect({
                 address: string;
                 accessToken: string;
                 refreshToken: string;
+                clubId: string;
             }) => {
                 try {
                     console.log(`[Pusher] ✅ Received: client-send-authorization-to-site`, {

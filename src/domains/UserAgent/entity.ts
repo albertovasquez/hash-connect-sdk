@@ -41,6 +41,7 @@ const makeUserAgent = ({
     signature: null,
     accessToken: null,
     refreshToken: null,
+    clubId: null,
   };
 
   // Load existing profile from storage
@@ -95,6 +96,7 @@ const makeUserAgent = ({
         signature: null,
         accessToken: null,
         refreshToken: null,
+        clubId: null,
       };
     } catch (error) {
       console.error("Error during disconnect:", error);
@@ -116,6 +118,7 @@ const makeUserAgent = ({
       isConnecting = false;
       profile = {
         address: null,
+        clubId: null,
         signature: null,
         accessToken: null,
         refreshToken: null,
