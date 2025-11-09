@@ -12,6 +12,7 @@ interface HashConnectState {
   isConnected: boolean;
   isLoading: boolean;
   userAddress: string | null;
+  clubId: string | null;
   error: string | null;
   debug?: boolean;
 }
@@ -25,6 +26,7 @@ export interface UseHashConnectReturn {
   isConnected: boolean;
   isLoading: boolean;
   userAddress: string | null;
+  clubId: string | null;
   error: string | null;
   connect: () => Promise<void>;
   disconnect: () => void;
@@ -39,6 +41,7 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
     isConnected: false,
     isLoading: false,
     userAddress: null,
+    clubId: null,
     error: null,
     debug,
   });
@@ -88,10 +91,15 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
 
       if (eventType === "connected") {
         log('✅ Connected event received, updating state...');
+        
+        // Get clubId from localStorage
+        const storedClubId = localStorage.getItem('hc:clubId');
+        
         setState((prev) => ({
           ...prev,
           isConnected: true,
           userAddress: user,
+          clubId: storedClubId,
           isLoading: false,
           error: null,
         }));
@@ -101,6 +109,7 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
           ...prev,
           isConnected: false,
           userAddress: null,
+          clubId: null,
           isLoading: false,
         }));
       }
@@ -116,10 +125,15 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
         const user = window.HASHConnect.getUser();
         if (user?.address) {
           log('✅ Found existing user connection:', user.address);
+          
+          // Get clubId from localStorage
+          const storedClubId = localStorage.getItem('hc:clubId');
+          
           setState((prev) => ({
             ...prev,
             isConnected: true,
             userAddress: user.address,
+            clubId: storedClubId,
           }));
         } else {
           log('ℹ️ No existing user found');

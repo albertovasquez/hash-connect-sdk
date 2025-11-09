@@ -11,6 +11,7 @@ import { CONFIG } from "../config";
 interface HashConnectContextType {
   isConnected: boolean;
   userAddress: string | null;
+  clubId: string | null;
   connect: () => Promise<void>;
   disconnect: () => void;
   getToken: () => Promise<string | null>;
@@ -34,6 +35,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
 }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [userAddress, setUserAddress] = useState<string | null>(null);
+  const [clubId, setClubId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const log = (...args: any[]) => {
@@ -73,16 +75,22 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
 
       if (eventType === "connected") {
         log('✅ Connected event received, updating state...');
+        
+        // Get clubId from localStorage
+        const storedClubId = localStorage.getItem('hc:clubId');
+        
         setIsConnected(true);
         setUserAddress(user);
+        setClubId(storedClubId);
         setIsLoading(false);
-        log('State updated:', { isConnected: true, userAddress: user, isLoading: false });
+        log('State updated:', { isConnected: true, userAddress: user, clubId: storedClubId, isLoading: false });
       } else if (eventType === "disconnected") {
         log('🔌 Disconnected event received, clearing state...');
         setIsConnected(false);
         setUserAddress(null);
+        setClubId(null);
         setIsLoading(false);
-        log('State updated:', { isConnected: false, userAddress: null, isLoading: false });
+        log('State updated:', { isConnected: false, userAddress: null, clubId: null, isLoading: false });
       }
     };
 
@@ -179,6 +187,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       value={{
         isConnected,
         userAddress,
+        clubId,
         connect,
         disconnect,
         getToken,
