@@ -64,6 +64,9 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
   useEffect(() => {
     log('Hook mounted, initializing...');
     
+    // Set debug mode in SDK config
+    CONFIG.DEBUG = debug;
+    
     // Set custom disclaimer if provided
     if (disclaimer) {
       CONFIG.CUSTOM_DISCLAIMER = disclaimer;

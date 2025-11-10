@@ -8,4 +8,24 @@ export const CONFIG = {
   DOMAIN: "localhost",
   APP_NAME: "Hash Pass Admin Panel",
   CUSTOM_DISCLAIMER: null as string | null, // Custom disclaimer text
+  DEBUG: false, // Debug mode flag
+};
+
+// Logging utilities that respect DEBUG flag
+export const log = (...args: any[]) => {
+  if (CONFIG.DEBUG) {
+    console.log(...args);
+  }
+};
+
+export const logError = (...args: any[]) => {
+  if (CONFIG.DEBUG) {
+    console.error(...args);
+  }
+};
+
+export const logWarn = (...args: any[]) => {
+  if (CONFIG.DEBUG) {
+    console.warn(...args);
+  }
 };

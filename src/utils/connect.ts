@@ -4,6 +4,7 @@ import setupUserSubscription from "../eventListeners/setupUserSubscription";
 import { storage } from "./storage";
 import { PusherClient } from "../types/pusher";
 import { UserProfile } from "../types/user";
+import { log, logError } from "../config";
 
 export default function connect({
     openModal,
@@ -24,18 +25,18 @@ export default function connect({
 }) {
     try {
         if (!pusherClient || typeof pusherClient.subscribe !== 'function') {
-            console.error("Invalid pusher client provided");
+            logError("Invalid pusher client provided");
             return;
         }
 
         if (!channelName) {
-            console.error("No channel name provided");
+            logError("No channel name provided");
             return;
         }
 
-        console.log(`[Pusher] Subscribing to channel: ${channelName}`);
+        log(`[Pusher] Subscribing to channel: ${channelName}`);
         let channel = pusherClient.subscribe(channelName);
-        console.log(`[Pusher] Successfully subscribed to channel: ${channelName}`);
+        log(`[Pusher] Successfully subscribed to channel: ${channelName}`);
         
         const btn = document.getElementById("hash-connect-btn");
         if (btn) {
@@ -47,7 +48,7 @@ export default function connect({
         const profile = getProfile();
 
         if (storedAddress != null && storedToken != null && profile.address && profile.accessToken) {
-            console.log("[HashConnect] Auto-reconnecting with stored credentials...");
+            log("[HashConnect] Auto-reconnecting with stored credentials...");
             openModal();
             handleHashConnect(
                 {
@@ -61,12 +62,12 @@ export default function connect({
             );
             return;
         } else {
-            console.log("[HashConnect] No stored credentials, starting new connection flow...");
+            log("[HashConnect] No stored credentials, starting new connection flow...");
             storage.removeItem("hc:sessionId");
             openModal();
         }
 
-        console.log(`[Pusher] Binding to event: client-send-authorization-to-site`);
+        log(`[Pusher] Binding to event: client-send-authorization-to-site`);
         channel.bind(
             "client-send-authorization-to-site",
             (data: {
@@ -76,42 +77,42 @@ export default function connect({
                 clubId: string;
             }) => {
                 try {
-                    console.log(`[Pusher] ✅ Received: client-send-authorization-to-site`, {
+                    log(`[Pusher] ✅ Received: client-send-authorization-to-site`, {
                         address: data.address,
                         hasAccessToken: !!data.accessToken,
                         hasRefreshToken: !!data.refreshToken
                     });
                     
-                    console.log('[Pusher] Calling handleHashConnect...');
+                    log('[Pusher] Calling handleHashConnect...');
                     handleHashConnect(data, setToken, onDisconnect);
-                    console.log('[Pusher] ✅ handleHashConnect completed');
+                    log('[Pusher] ✅ handleHashConnect completed');
                 } catch (error) {
-                    console.error("[Pusher] Error handling authorization:", error);
+                    logError("[Pusher] Error handling authorization:", error);
                 }
             }
         );
 
-        console.log(`[Pusher] Binding to event: client-send-unauthorization-to-site`);
+        log(`[Pusher] Binding to event: client-send-unauthorization-to-site`);
         channel.bind(
             "client-send-unauthorization-to-site",
             (data: { address: string }) => {
                 try {
-                    console.log(`[Pusher] ✅ Received: client-send-unauthorization-to-site`, {
+                    log(`[Pusher] ✅ Received: client-send-unauthorization-to-site`, {
                         address: data.address
                     });
                     handleHashDisconnect(data, onDisconnect);
                 } catch (error) {
-                    console.error("[Pusher] Error handling unauthorization:", error);
+                    logError("[Pusher] Error handling unauthorization:", error);
                 }
             }
         );
 
-        console.log(`[Pusher] Binding to event: client-hash-pass-connect`);
+        log(`[Pusher] Binding to event: client-hash-pass-connect`);
         channel.bind(
             "client-hash-pass-connect",
             (data: { address: string; signature: string }) => {
                 try {
-                    console.log(`[Pusher] ✅ Received: client-hash-pass-connect`, {
+                    log(`[Pusher] ✅ Received: client-hash-pass-connect`, {
                         address: data.address,
                         hasSignature: !!data.signature
                     });
@@ -122,7 +123,7 @@ export default function connect({
                     const hasRefreshToken = storage.getItem("hc:refreshToken");
                     
                     if (hasAccessToken && hasRefreshToken && profile.address === data.address) {
-                        console.log(`[Pusher] ⏭️  Already connected to this address, skipping subscription setup`);
+                        log(`[Pusher] ⏭️  Already connected to this address, skipping subscription setup`);
                         return;
                     }
                     
@@ -134,11 +135,11 @@ export default function connect({
                         channelName
                     );
                 } catch (error) {
-                    console.error("[Pusher] Error setting up user subscription:", error);
+                    logError("[Pusher] Error setting up user subscription:", error);
                 }
             }
         );
     } catch (ex) {
-        console.error("Error connecting to HASH Pass:", ex);
+        logError("Error connecting to HASH Pass:", ex);
     }
 }

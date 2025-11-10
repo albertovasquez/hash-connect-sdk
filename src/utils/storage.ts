@@ -3,6 +3,8 @@
  * Useful for private browsing mode and other scenarios where localStorage might fail
  */
 
+import { logError, logWarn } from "../config";
+
 class SafeStorage {
     private fallbackStorage: Map<string, string> = new Map();
     private isLocalStorageAvailable: boolean = true;
@@ -18,7 +20,7 @@ class SafeStorage {
             localStorage.removeItem(testKey);
             this.isLocalStorageAvailable = true;
         } catch (e) {
-            console.warn('localStorage is not available, using fallback storage', e);
+            logWarn('localStorage is not available, using fallback storage', e);
             this.isLocalStorageAvailable = false;
         }
     }
@@ -33,7 +35,7 @@ class SafeStorage {
                 return true;
             }
         } catch (error) {
-            console.error(`Failed to set item in storage: ${key}`, error);
+            logError(`Failed to set item in storage: ${key}`, error);
             // Fallback to in-memory storage
             this.fallbackStorage.set(key, value);
             this.isLocalStorageAvailable = false;
@@ -49,7 +51,7 @@ class SafeStorage {
                 return this.fallbackStorage.get(key) || null;
             }
         } catch (error) {
-            console.error(`Failed to get item from storage: ${key}`, error);
+            logError(`Failed to get item from storage: ${key}`, error);
             return this.fallbackStorage.get(key) || null;
         }
     }
@@ -62,7 +64,7 @@ class SafeStorage {
             this.fallbackStorage.delete(key);
             return true;
         } catch (error) {
-            console.error(`Failed to remove item from storage: ${key}`, error);
+            logError(`Failed to remove item from storage: ${key}`, error);
             this.fallbackStorage.delete(key);
             return false;
         }
@@ -80,7 +82,7 @@ class SafeStorage {
             this.fallbackStorage.clear();
             return true;
         } catch (error) {
-            console.error('Failed to clear storage', error);
+            logError('Failed to clear storage', error);
             this.fallbackStorage.clear();
             return false;
         }

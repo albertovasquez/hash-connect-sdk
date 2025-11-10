@@ -1,4 +1,4 @@
-import { CONFIG } from "../config";
+import { CONFIG, logError } from "../config";
 import { storage } from "./storage";
 
 export default async function getNewTokens(retries: number = 3): Promise<{ accessToken: string; refreshToken: string }> {
@@ -43,7 +43,7 @@ export default async function getNewTokens(retries: number = 3): Promise<{ acces
 
             return responseData;
         } catch (error) {
-            console.error(`Token refresh attempt failed (${attemptsLeft} retries left):`, error);
+            logError(`Token refresh attempt failed (${attemptsLeft} retries left):`, error);
             
             // Don't retry on auth errors
             if (error instanceof Error) {

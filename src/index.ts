@@ -2,6 +2,7 @@ import "./styles.css";
 import UserAgent from "./domains/UserAgent";
 import translation from "./utils/translation";
 import { storage } from "./utils/storage";
+import { logError, logWarn } from "./config";
 
 // Function to create and append a profile div to the wrapper
 function createProfileDiv(wrapper: HTMLElement) {
@@ -10,7 +11,7 @@ function createProfileDiv(wrapper: HTMLElement) {
         div.id = "hash-connect-profile";
         wrapper.appendChild(div);
     } catch (error) {
-        console.error("Error creating profile div:", error);
+        logError("Error creating profile div:", error);
     }
 }
 
@@ -29,16 +30,16 @@ function createConnectButton(wrapper: HTMLElement) {
                 if (window.HASHConnect && typeof window.HASHConnect.connect === 'function') {
                     window.HASHConnect.connect();
                 } else {
-                    console.error("HASHConnect.connect is not available");
+                    logError("HASHConnect.connect is not available");
                 }
             } catch (error) {
-                console.error("Error handling connect button click:", error);
+                logError("Error handling connect button click:", error);
             }
         });
         wrapper.appendChild(button);
         return button;
     } catch (error) {
-        console.error("Error creating connect button:", error);
+        logError("Error creating connect button:", error);
         return null;
     }
 }
@@ -48,7 +49,7 @@ function addElements() {
     try {
         const hashConnectWrapper = document.getElementById("hash-connect");
         if (!hashConnectWrapper) {
-            console.warn("hash-connect element not found in the DOM");
+            logWarn("hash-connect element not found in the DOM");
             return; // Early return if the wrapper is not found
         }
 
@@ -64,7 +65,7 @@ function addElements() {
             }
         }
     } catch (error) {
-        console.error("Error in addElements:", error);
+        logError("Error in addElements:", error);
     }
 }
 

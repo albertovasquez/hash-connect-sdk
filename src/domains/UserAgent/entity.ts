@@ -2,6 +2,7 @@ import { storage } from "../../utils/storage";
 import { PusherClient } from "../../types/pusher";
 import { QRCodeConstructor } from "../../types/qrcode";
 import { UserProfile, UserTokens } from "../../types/user";
+import { log, logError, logWarn } from "../../config";
 
 type ConnectFunction = (params: {
   openModal: () => void;
@@ -55,31 +56,31 @@ const makeUserAgent = ({
       profile.clubId = storage.getItem("hc:clubId");
     }
   } catch (error) {
-    console.error("Error loading profile from storage:", error);
+      logError("Error loading profile from storage:", error);
   }
 
   const onDisconnect = () => {
     try {
-      console.log("[Pusher] Disconnecting and cleaning up...");
+      log("[Pusher] Disconnecting and cleaning up...");
       storage.removeItem("hc:sessionId");
       
       if (pusherClient) {
         if (SessionChannelName) {
           try {
-            console.log(`[Pusher] Unsubscribing from session channel: ${SessionChannelName}`);
+            log(`[Pusher] Unsubscribing from session channel: ${SessionChannelName}`);
             pusherClient.unsubscribe(SessionChannelName);
           } catch (error) {
-            console.warn("[Pusher] Error unsubscribing from session channel:", error);
+            logWarn("[Pusher] Error unsubscribing from session channel:", error);
           }
         }
         
         if (profile.address) {
           const userChannelName = `private-${profile.address}`;
           try {
-            console.log(`[Pusher] Unsubscribing from user channel: ${userChannelName}`);
+            log(`[Pusher] Unsubscribing from user channel: ${userChannelName}`);
             pusherClient.unsubscribe(userChannelName);
           } catch (error) {
-            console.warn("[Pusher] Error unsubscribing from user channel:", error);
+            logWarn("[Pusher] Error unsubscribing from user channel:", error);
           }
         }
       }
@@ -99,17 +100,17 @@ const makeUserAgent = ({
         clubId: null,
       };
     } catch (error) {
-      console.error("Error during disconnect:", error);
+      logError("Error during disconnect:", error);
     }
   };
 
   const connect = async () => {
-    console.log('[UserAgent] connect() called');
+    log('[UserAgent] connect() called');
     
     // Check if session was cleared (e.g., by React disconnect)
     const storedSessionId = storage.getItem("hc:sessionId");
     if (sessionId && !storedSessionId) {
-      console.log('[UserAgent] Session was cleared externally, resetting state...');
+      log('[UserAgent] Session was cleared externally, resetting state...');
       // Reset state
       sessionId = null;
       QRCodeString = null;
@@ -125,45 +126,45 @@ const makeUserAgent = ({
       };
     }
     
-    console.log('[UserAgent] Current state:', { isConnected, isConnecting, hasSessionId: !!sessionId });
+    log('[UserAgent] Current state:', { isConnected, isConnecting, hasSessionId: !!sessionId });
     
     // Guard against multiple simultaneous connection attempts
     if (isConnected || isConnecting) {
-      console.warn("[UserAgent] ⚠️ Connection blocked! Already connected or connecting", { 
+      logWarn("[UserAgent] ⚠️ Connection blocked! Already connected or connecting", { 
         isConnected, 
         isConnecting,
         sessionId: sessionId ? `${sessionId.substring(0, 8)}...` : null,
         hasStoredSession: !!storage.getItem("hc:sessionId")
       });
-      console.warn("[UserAgent] 💡 Tip: If stuck, clear localStorage and refresh the page");
+      logWarn("[UserAgent] 💡 Tip: If stuck, clear localStorage and refresh the page");
       return;
     }
 
-    console.log('[UserAgent] Starting connection process...');
+    log('[UserAgent] Starting connection process...');
     isConnecting = true;
 
     try {
       // Initialize pusher client if needed
       if (pusherClient === null) {
-        console.log('[UserAgent] Pusher client not initialized, creating...');
+        log('[UserAgent] Pusher client not initialized, creating...');
         pusherClient = await getPusherClient();
-        console.log('[UserAgent] ✅ Pusher client initialized');
+        log('[UserAgent] ✅ Pusher client initialized');
       }
       
       // Always generate a new session ID if one doesn't exist (e.g., after disconnect)
       if (!sessionId) {
-        console.log('[UserAgent] No session ID exists, generating new one...');
+        log('[UserAgent] No session ID exists, generating new one...');
         sessionId = Math.random().toString(36).slice(2);
         QRCodeString = `hc:${sessionId}`;
         SessionChannelName = `private-hc-${sessionId}`;
-        console.log('[UserAgent] ✅ Session created:', { sessionId, QRCodeString, SessionChannelName });
+        log('[UserAgent] ✅ Session created:', { sessionId, QRCodeString, SessionChannelName });
       } else {
-        console.log('[UserAgent] Using existing session:', { sessionId, SessionChannelName });
+        log('[UserAgent] Using existing session:', { sessionId, SessionChannelName });
       }
 
-      console.log('[UserAgent] Checking if _connect function is provided...');
+      log('[UserAgent] Checking if _connect function is provided...');
       if (_connect) {
-        console.log('[UserAgent] ✅ _connect function found, calling it...');
+        log('[UserAgent] ✅ _connect function found, calling it...');
         _connect({
           openModal,
           pusherClient,
@@ -186,14 +187,14 @@ const makeUserAgent = ({
           },
           onDisconnect,
         });
-        console.log('[UserAgent] ✅ _connect function completed');
+        log('[UserAgent] ✅ _connect function completed');
       } else {
         throw new Error("Connect function not provided");
       }
       isConnected = true;
-      console.log('[UserAgent] ✅ Connection completed successfully');
+      log('[UserAgent] ✅ Connection completed successfully');
     } catch (error) {
-      console.error("[UserAgent] ❌ Error during connection:", error);
+      logError("[UserAgent] ❌ Error during connection:", error);
       isConnecting = false;
       throw error;
     } finally {
@@ -202,37 +203,37 @@ const makeUserAgent = ({
   };
 
   const openModal = async () => {
-    console.log('[UserAgent] openModal() called');
+    log('[UserAgent] openModal() called');
     
     try {
       if (QRCodeString === null) {
-        console.error("[UserAgent] ❌ QRCodeString is null, cannot open modal");
+        logError("[UserAgent] ❌ QRCodeString is null, cannot open modal");
         return;
       }
       
-      console.log('[UserAgent] QRCodeString available:', QRCodeString);
+      log('[UserAgent] QRCodeString available:', QRCodeString);
       
       if (qrCodeGenerator === null) {
-        console.log('[UserAgent] QR code generator not initialized, loading...');
+        log('[UserAgent] QR code generator not initialized, loading...');
         qrCodeGenerator = await getQrCodeGenerator();
         if (!qrCodeGenerator) {
-          console.error("[UserAgent] ❌ Failed to load QR code generator");
+          logError("[UserAgent] ❌ Failed to load QR code generator");
           return;
         }
-        console.log('[UserAgent] ✅ QR code generator loaded');
+        log('[UserAgent] ✅ QR code generator loaded');
       }
 
       const onReady = (qrCodeGenerator: QRCodeConstructor) => {
         return () => {
-          console.log('[UserAgent] onReady callback executing...');
+          log('[UserAgent] onReady callback executing...');
           
           try {
             if (sessionId) {
-              console.log('[UserAgent] Storing session ID:', sessionId);
+              log('[UserAgent] Storing session ID:', sessionId);
               storage.setItem("hc:sessionId", sessionId);
             }
             
-            console.log('[UserAgent] Clearing old credentials from storage');
+            log('[UserAgent] Clearing old credentials from storage');
             storage.removeItem("hc:address");
             storage.removeItem("hc:accessToken");
             storage.removeItem("hc:refreshToken");
@@ -241,18 +242,18 @@ const makeUserAgent = ({
             
             const qrCodeDiv = document.getElementById("hash-connect-qrcode");
             if (!qrCodeDiv) {
-              console.error("[UserAgent] ❌ QR code div not found in DOM");
+              logError("[UserAgent] ❌ QR code div not found in DOM");
               return;
             }
             
-            console.log('[UserAgent] ✅ QR code div found');
+            log('[UserAgent] ✅ QR code div found');
             
             if (!QRCodeString) {
-              console.error("[UserAgent] ❌ QRCodeString is null");
+              logError("[UserAgent] ❌ QRCodeString is null");
               return;
             }
             
-            console.log('[UserAgent] Generating QR code with:', { 
+            log('[UserAgent] Generating QR code with:', { 
               text: QRCodeString, 
               width: 128, 
               height: 128 
@@ -267,23 +268,23 @@ const makeUserAgent = ({
               correctLevel: qrCodeGenerator.CorrectLevel.H,
             });
             
-            console.log('[UserAgent] ✅ QR code generated successfully');
+            log('[UserAgent] ✅ QR code generated successfully');
           } catch (error) {
-            console.error("[UserAgent] ❌ Error rendering QR code:", error);
+            logError("[UserAgent] ❌ Error rendering QR code:", error);
           }
         };
       };
 
-      console.log('[UserAgent] Checking if _openModal function is provided...');
+      log('[UserAgent] Checking if _openModal function is provided...');
       if (_openModal) {
-        console.log('[UserAgent] ✅ _openModal function found, calling it...');
+        log('[UserAgent] ✅ _openModal function found, calling it...');
         _openModal(onReady(qrCodeGenerator), onDisconnect);
-        console.log('[UserAgent] ✅ _openModal function completed');
+        log('[UserAgent] ✅ _openModal function completed');
       } else {
         throw new Error("OpenModal function not provided");
       }
     } catch (error) {
-      console.error("[UserAgent] ❌ Error opening modal:", error);
+      logError("[UserAgent] ❌ Error opening modal:", error);
     }
   };
 
@@ -293,23 +294,23 @@ const makeUserAgent = ({
     try {
       const storedSessionId = storage.getItem("hc:sessionId");
       if (storedSessionId) {
-        console.log("[HashConnect] Found stored session, preparing to auto-connect...");
+        log("[HashConnect] Found stored session, preparing to auto-connect...");
         sessionId = storedSessionId;
         QRCodeString = `hc:${sessionId}`;
         SessionChannelName = `private-hc-${sessionId}`;
         
         // Defer connection until page is fully loaded
         const attemptAutoConnect = () => {
-          console.log("[HashConnect] Attempting auto-connect with stored session...");
+          log("[HashConnect] Attempting auto-connect with stored session...");
           connect().catch(error => {
-            console.error("[HashConnect] ❌ Auto-connect failed:", error);
-            console.log("[HashConnect] Cleaning up failed session...");
+            logError("[HashConnect] ❌ Auto-connect failed:", error);
+            log("[HashConnect] Cleaning up failed session...");
             
             // Clean up the failed session so manual connect can work
             isConnecting = false;
             isConnected = false;
             
-            console.log("[HashConnect] You can now manually reconnect");
+            log("[HashConnect] You can now manually reconnect");
           });
         };
 
@@ -325,7 +326,7 @@ const makeUserAgent = ({
         }
       }
     } catch (error) {
-      console.error("[HashConnect] Error checking for stored session:", error);
+      logError("[HashConnect] Error checking for stored session:", error);
     }
   };
 
@@ -340,12 +341,12 @@ const makeUserAgent = ({
     getToken: async () => {
       try {
         if (!isConnected) {
-          console.warn("Not connected");
+          logWarn("Not connected");
           return null;
         }
 
         if (!profile.accessToken) {
-          console.warn("No access token available");
+          logWarn("No access token available");
           return null;
         }
 
@@ -358,7 +359,7 @@ const makeUserAgent = ({
             profile.accessToken = accessToken;
             profile.refreshToken = refreshToken;
           } catch (error) {
-            console.error("Failed to refresh token:", error);
+            logError("Failed to refresh token:", error);
             // Token refresh failed, user needs to reconnect
             onDisconnect();
             return null;
@@ -367,14 +368,14 @@ const makeUserAgent = ({
 
         return profile.accessToken;
       } catch (error) {
-        console.error("Error getting token:", error);
+        logError("Error getting token:", error);
         return null;
       }
     },
     
     getUser: () => {
       if (!isConnected) {
-        console.warn("Not connected");
+        logWarn("Not connected");
         return;
       }
 
@@ -390,12 +391,12 @@ const makeUserAgent = ({
       try {
         const clubId = storage.getItem("hc:clubId");
         if (!clubId) {
-          console.warn("No club ID available");
+          logWarn("No club ID available");
           return null;
         }
         return clubId;
       } catch (error) {
-        console.error("Error getting club ID:", error);
+        logError("Error getting club ID:", error);
         return null;
       }
     },

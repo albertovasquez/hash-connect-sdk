@@ -1,27 +1,27 @@
 import translation from "./translation";
 import { storage } from "./storage";
-import { CONFIG } from "../config";
+import { CONFIG, log, logError } from "../config";
 
 export const openModal = (onReady: () => void, onClose: () => void) => {
-    console.log('[Modal] openModal called');
+    log('[Modal] openModal called');
     
     try {
         const isConnectedAlready = storage.getItem("hc:sessionId");
-        console.log('[Modal] Checking existing session:', { hasSession: !!isConnectedAlready });
+        log('[Modal] Checking existing session:', { hasSession: !!isConnectedAlready });
         
         if (isConnectedAlready) {
-            console.log('[Modal] Already connected, showing connected buttons instead of modal');
+            log('[Modal] Already connected, showing connected buttons instead of modal');
             showConnectedButtons();
             return;
         }
 
         const body = document.getElementsByTagName("body")[0];
         if (!body) {
-            console.error("[Modal] ❌ Body element not found");
+            logError("[Modal] ❌ Body element not found");
             return;
         }
         
-        console.log('[Modal] Body element found, creating modal...');
+        log('[Modal] Body element found, creating modal...');
 
         // Use custom disclaimer if provided, otherwise use default translation
         const disclaimerText = CONFIG.CUSTOM_DISCLAIMER || translation.translate("disclaimer");
@@ -46,40 +46,40 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
               </div>
           `;
         body.appendChild(modal);
-        console.log('[Modal] ✅ Modal element created and added to DOM');
+        log('[Modal] ✅ Modal element created and added to DOM');
 
         const closeButton = document.getElementById("hash-connect-close-button");
         if (closeButton) {
-            console.log('[Modal] ✅ Close button found, attaching click handler');
+            log('[Modal] ✅ Close button found, attaching click handler');
             closeButton.addEventListener("click", () => {
                 try {
-                    console.log('[Modal] Close button clicked');
+                    log('[Modal] Close button clicked');
                     closeModalDisconnect();
                     onClose();
                 } catch (error) {
-                    console.error("[Modal] Error in close handler:", error);
+                    logError("[Modal] Error in close handler:", error);
                 }
             });
         } else {
-            console.error('[Modal] ❌ Close button not found');
+            logError('[Modal] ❌ Close button not found');
         }
 
-        console.log('[Modal] Checking if onReady is a function:', typeof onReady === 'function');
+        log('[Modal] Checking if onReady is a function:', typeof onReady === 'function');
         if (typeof onReady === 'function') {
-            console.log('[Modal] Calling onReady callback...');
+            log('[Modal] Calling onReady callback...');
             onReady();
-            console.log('[Modal] ✅ onReady callback completed');
+            log('[Modal] ✅ onReady callback completed');
         } else {
-            console.error('[Modal] ❌ onReady is not a function:', onReady);
+            logError('[Modal] ❌ onReady is not a function:', onReady);
         }
     } catch (error) {
-        console.error("[Modal] ❌ Error opening modal:", error);
+        logError("[Modal] ❌ Error opening modal:", error);
     }
 };
 
 export const closeModalDisconnect = () => {
     try {
-        console.log('[Modal] closeModalDisconnect called - cleaning up session');
+        log('[Modal] closeModalDisconnect called - cleaning up session');
         storage.removeItem("hc:sessionId");
         storage.removeItem("hc:accessToken");
         storage.removeItem("hc:refreshToken");
@@ -100,7 +100,7 @@ export const closeModalDisconnect = () => {
         }
 
         // Dispatch disconnected event to update React state
-        console.log('[Modal] Dispatching disconnected event to reset loading state');
+        log('[Modal] Dispatching disconnected event to reset loading state');
         const event = new CustomEvent('hash-connect-event', {
             detail: {
                 eventType: 'disconnected',
@@ -111,10 +111,10 @@ export const closeModalDisconnect = () => {
         // Small delay to ensure cleanup is complete before dispatching
         setTimeout(() => {
             document.dispatchEvent(event);
-            console.log('[Modal] ✅ Disconnected event dispatched to reset React state');
+            log('[Modal] ✅ Disconnected event dispatched to reset React state');
         }, 10);
     } catch (error) {
-        console.error("Error in closeModalDisconnect:", error);
+        logError("Error in closeModalDisconnect:", error);
     }
 };
 
@@ -125,7 +125,7 @@ export const closeModal = () => {
             modal.remove();
         }
     } catch (error) {
-        console.error("Error closing modal:", error);
+        logError("Error closing modal:", error);
     }
 };
 
@@ -137,6 +137,6 @@ export const showConnectedButtons = () => {
             btn.style.display = "none";
         }
     } catch (error) {
-        console.error("Error showing connected buttons:", error);
+        logError("Error showing connected buttons:", error);
     }
 };

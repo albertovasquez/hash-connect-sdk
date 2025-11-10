@@ -1,6 +1,7 @@
 import { storage } from "../utils/storage";
 import { PusherClient, PusherChannel } from "../types/pusher";
 import { UserProfile, ConnectionData } from "../types/user";
+import { log, logError, logWarn } from "../config";
 
 const onConnectToUserChannel = (
     userChannel: PusherChannel,
@@ -13,7 +14,7 @@ const onConnectToUserChannel = (
         const hasRefreshToken = storage.getItem("hc:refreshToken");
         
         if (hasAccessToken && hasRefreshToken) {
-            console.log(`[Pusher] ⏭️  Already authorized, skipping authorization request`);
+            log(`[Pusher] ⏭️  Already authorized, skipping authorization request`);
             return;
         }
 
@@ -28,11 +29,11 @@ const onConnectToUserChannel = (
         };
         
         if (!userChannel || typeof userChannel.trigger !== 'function') {
-            console.error("[Pusher] Invalid user channel");
+            logError("[Pusher] Invalid user channel");
             return;
         }
 
-        console.log(`[Pusher] 📤 Sending: client-request-user-to-authorize-from-site`, {
+        log(`[Pusher] 📤 Sending: client-request-user-to-authorize-from-site`, {
             channel: SessionChannelName,
             domain: triggerData.domain,
             siteName: triggerData.name
@@ -41,9 +42,9 @@ const onConnectToUserChannel = (
             "client-request-user-to-authorize-from-site",
             triggerData
         );
-        console.log(`[Pusher] ✅ Message sent successfully`);
+        log(`[Pusher] ✅ Message sent successfully`);
     } catch (error) {
-        console.error("Error in onConnectToUserChannel:", error);
+        logError("Error in onConnectToUserChannel:", error);
     }
 };
 
@@ -57,12 +58,12 @@ export default function setupUserSubscription(
     try {
         // Validate input
         if (!data || !data.address || !data.signature) {
-            console.error("Invalid subscription data");
+            logError("Invalid subscription data");
             return;
         }
 
         if (!pusherClient || typeof pusherClient.subscribe !== 'function') {
-            console.error("Invalid pusher client");
+            logError("Invalid pusher client");
             return;
         }
 
@@ -76,14 +77,14 @@ export default function setupUserSubscription(
         // The accessToken and refreshToken will be set later via setToken callback
         setProfile(userAddress, userSignature, '', '');
 
-        console.log(`[Pusher] Subscribing to user channel: ${userChannelName}`);
+        log(`[Pusher] Subscribing to user channel: ${userChannelName}`);
         const userChannel = pusherClient.subscribe(userChannelName);
         
         let messageAttempted = false; // Prevent duplicate attempts
         
-        console.log(`[Pusher] Binding to event: pusher:subscription_succeeded on ${userChannelName}`);
+        log(`[Pusher] Binding to event: pusher:subscription_succeeded on ${userChannelName}`);
         userChannel.bind("pusher:subscription_succeeded", () => {
-            console.log(`[Pusher] ✅ Subscription succeeded: ${userChannelName}`);
+            log(`[Pusher] ✅ Subscription succeeded: ${userChannelName}`);
             if (!messageAttempted) {
                 messageAttempted = true;
                 // Small delay to ensure channel is fully ready before sending messages
@@ -97,11 +98,11 @@ export default function setupUserSubscription(
         setTimeout(() => {
             if (!messageAttempted) {
                 messageAttempted = true;
-                console.warn(`[Pusher] ⚠️  Subscription timeout for ${userChannelName}, attempting to send anyway...`);
+                logWarn(`[Pusher] ⚠️  Subscription timeout for ${userChannelName}, attempting to send anyway...`);
                 onConnectToUserChannel(userChannel, userProfile, SessionChannelName);
             }
         }, 5000);
     } catch (error) {
-        console.error("Error setting up user subscription:", error);
+        logError("Error setting up user subscription:", error);
     }
 }

@@ -1,3 +1,5 @@
+import { log, logError } from "../config";
+
 export function loadScript(url: string, callback: () => void, retries: number = 3): void {
   const attemptLoad = (attemptsLeft: number) => {
     const script = document.createElement("script");
@@ -6,7 +8,7 @@ export function loadScript(url: string, callback: () => void, retries: number = 
 
     const entry = document.getElementsByTagName("script")[0];
     if (!entry || !entry.parentNode) {
-      console.error("No script tags found in document");
+      logError("No script tags found in document");
       return;
     }
     entry.parentNode.insertBefore(script, entry);
@@ -19,7 +21,7 @@ export function loadScript(url: string, callback: () => void, retries: number = 
     };
 
     script.onerror = function (error) {
-      console.error(`Failed to load script: ${url}`, error);
+      logError(`Failed to load script: ${url}`, error);
       // Detach the event handlers
       script.onload = null;
       script.onerror = null;
@@ -27,10 +29,10 @@ export function loadScript(url: string, callback: () => void, retries: number = 
       script.remove();
       
       if (attemptsLeft > 0) {
-        console.log(`Retrying... (${attemptsLeft} attempts left)`);
+        log(`Retrying... (${attemptsLeft} attempts left)`);
         setTimeout(() => attemptLoad(attemptsLeft - 1), 1000);
       } else {
-        console.error(`Failed to load script after ${retries} attempts: ${url}`);
+        logError(`Failed to load script after ${retries} attempts: ${url}`);
       }
     };
   };
