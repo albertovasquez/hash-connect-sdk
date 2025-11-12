@@ -55,7 +55,8 @@ export default function connect({
                     address: profile.address,
                     accessToken: profile.accessToken,
                     refreshToken: profile.refreshToken || '',
-                    clubId: profile.clubId || ''
+                    clubId: profile.clubId || '',
+                    clubName: profile.clubName || ''
                 },
                 setToken,
                 onDisconnect
@@ -75,6 +76,7 @@ export default function connect({
                 accessToken: string;
                 refreshToken: string;
                 clubId: string;
+                clubName: string;
             }) => {
                 try {
                     log(`[Pusher] ✅ Received: client-send-authorization-to-site`, {
