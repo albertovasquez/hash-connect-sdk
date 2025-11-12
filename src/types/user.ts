@@ -5,6 +5,7 @@
 export interface UserProfile {
   address: string | null;
   clubId: string | null;
+  clubName: string | null;
   signature: string | null;
   accessToken: string | null;
   refreshToken: string | null;
@@ -18,6 +19,7 @@ export interface UserTokens {
 export interface AuthData {
   address: string;
   clubId: string;
+  clubName: string;
   accessToken: string;
   refreshToken: string;
 }

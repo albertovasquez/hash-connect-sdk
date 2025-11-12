@@ -86,6 +86,7 @@ export const closeModalDisconnect = () => {
         storage.removeItem("hc:address");
         storage.removeItem("hc:signature");
         storage.removeItem("hc:clubId");
+        storage.removeItem("hc:clubName");
         closeModal();
         
         const profileWrapper = document.getElementById("hash-connect-profile");

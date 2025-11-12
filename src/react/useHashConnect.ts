@@ -13,6 +13,7 @@ interface HashConnectState {
   isLoading: boolean;
   userAddress: string | null;
   clubId: string | null;
+  clubName: string | null;
   error: string | null;
   debug?: boolean;
 }
@@ -27,11 +28,13 @@ export interface UseHashConnectReturn {
   isLoading: boolean;
   userAddress: string | null;
   clubId: string | null;
+  clubName: string | null;
   error: string | null;
   connect: () => Promise<void>;
   disconnect: () => void;
   getToken: () => Promise<string | null>;
   getClubId: () => string | null;
+  getClubName: () => string | null;
   makeAuthRequest: <T>(url: string, options?: RequestInit) => Promise<T>;
 }
 
@@ -43,6 +46,7 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
     isLoading: false,
     userAddress: null,
     clubId: null,
+    clubName: null,
     error: null,
     debug,
   });
@@ -98,12 +102,14 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
         
         // Get clubId from localStorage
         const storedClubId = localStorage.getItem('hc:clubId');
-        
+        const storedClubName = localStorage.getItem('hc:clubName');
+
         setState((prev) => ({
           ...prev,
           isConnected: true,
           userAddress: user,
           clubId: storedClubId,
+          clubName: storedClubName,
           isLoading: false,
           error: null,
         }));
@@ -114,6 +120,7 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
           isConnected: false,
           userAddress: null,
           clubId: null,
+          clubName: null,
           isLoading: false,
         }));
       }
@@ -132,12 +139,14 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
           
           // Get clubId from localStorage
           const storedClubId = localStorage.getItem('hc:clubId');
+          const storedClubName = localStorage.getItem('hc:clubName');
           
           setState((prev) => ({
             ...prev,
             isConnected: true,
             userAddress: user.address,
             clubId: storedClubId,
+            clubName: storedClubName,
           }));
         } else {
           log('ℹ️ No existing user found');
@@ -210,6 +219,7 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
         localStorage.removeItem('hc:refreshToken');
         localStorage.removeItem('hc:signature');
         localStorage.removeItem('hc:clubId');
+        localStorage.removeItem('hc:clubName');
         
         // Dispatch disconnected event
         const event = new CustomEvent('hash-connect-event', {
@@ -267,6 +277,26 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
     return clubId;
   }, [debug]);
 
+  const getClubName = useCallback(() => {
+    log('🏢 getClubName called');
+    
+    if (!window.HASHConnect) {
+      logError('❌ HASHConnect not available');
+      return null;
+    }
+    
+    log('Calling window.HASHConnect.getClubName()...');
+    const clubName = window.HASHConnect.getClubName();
+    
+    if (clubName) {
+      log('✅ Club Name retrieved successfully:', clubName);
+    } else {
+      log('ℹ️ No club Name available');
+    }
+    
+    return clubName;
+  }, [debug]);
+
   const makeAuthRequest = useCallback(
     async <T,>(url: string, options: RequestInit = {}): Promise<T> => {
       const token = await getToken();
@@ -299,6 +329,7 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
     disconnect,
     getToken,
     getClubId,
+    getClubName,
     makeAuthRequest,
   };
 }

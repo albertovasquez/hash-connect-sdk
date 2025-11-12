@@ -243,6 +243,7 @@ The SDK stores session data in localStorage:
 console.log(localStorage.getItem("hc:sessionId"));
 console.log(localStorage.getItem("hc:address"));
 console.log(localStorage.getItem("hc:clubId"));
+console.log(localStorage.getItem("hc:clubName"));
 console.log(localStorage.getItem("hc:accessToken"));
 ```
 

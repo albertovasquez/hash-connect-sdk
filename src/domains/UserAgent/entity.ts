@@ -43,6 +43,7 @@ const makeUserAgent = ({
     accessToken: null,
     refreshToken: null,
     clubId: null,
+    clubName: null,
   };
 
   // Load existing profile from storage
@@ -54,6 +55,7 @@ const makeUserAgent = ({
       profile.signature = storage.getItem("hc:signature");
       profile.address = storage.getItem("hc:address");
       profile.clubId = storage.getItem("hc:clubId");
+      profile.clubName = storage.getItem("hc:clubName");
     }
   } catch (error) {
       logError("Error loading profile from storage:", error);
@@ -98,6 +100,7 @@ const makeUserAgent = ({
         accessToken: null,
         refreshToken: null,
         clubId: null,
+        clubName: null,
       };
     } catch (error) {
       logError("Error during disconnect:", error);
@@ -120,6 +123,7 @@ const makeUserAgent = ({
       profile = {
         address: null,
         clubId: null,
+        clubName: null,
         signature: null,
         accessToken: null,
         refreshToken: null,
@@ -239,7 +243,7 @@ const makeUserAgent = ({
             storage.removeItem("hc:refreshToken");
             storage.removeItem("hc:signature");
             storage.removeItem("hc:clubId");
-            
+            storage.removeItem("hc:clubName");
             const qrCodeDiv = document.getElementById("hash-connect-qrcode");
             if (!qrCodeDiv) {
               logError("[UserAgent] ❌ QR code div not found in DOM");
@@ -385,6 +389,20 @@ const makeUserAgent = ({
         address: profile.address,
       };
       return user;
+    },
+
+    getClubName: () => {
+      try {
+        const clubName = storage.getItem("hc:clubName");
+        if (!clubName) {
+          logWarn("No club name available");
+          return null;
+        }
+        return clubName;
+      } catch (error) {
+        logError("Error getting club name:", error);
+        return null;
+      }
     },
     
     getClubId: () => {
