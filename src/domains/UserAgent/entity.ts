@@ -59,6 +59,11 @@ const makeUserAgent = ({
       profile.address = storage.getItem("hc:address");
       profile.clubId = storage.getItem("hc:clubId");
       profile.clubName = storage.getItem("hc:clubName");
+      log("[UserAgent] Profile loaded from storage:", { 
+        hasAddress: !!profile.address, 
+        hasAccessToken: !!profile.accessToken,
+        hasRefreshToken: !!profile.refreshToken 
+      });
     }
   } catch (error) {
       logError("Error loading profile from storage:", error);
@@ -306,15 +311,32 @@ const makeUserAgent = ({
   const initializeStoredSession = () => {
     try {
       const storedSessionId = storage.getItem("hc:sessionId");
-      if (storedSessionId) {
-        log("[HashConnect] Found stored session, preparing to auto-connect...");
-        sessionId = storedSessionId;
-        QRCodeString = `hc:${sessionId}`;
-        SessionChannelName = `private-hc-${sessionId}`;
+      const storedAddress = storage.getItem("hc:address");
+      const storedAccessToken = storage.getItem("hc:accessToken");
+      
+      // Check if we should auto-connect
+      const hasSession = !!storedSessionId;
+      const hasCredentials = !!(storedAddress && storedAccessToken);
+      
+      if (hasSession || hasCredentials) {
+        if (hasSession) {
+          log("[HashConnect] Found stored session, preparing to auto-connect...");
+          sessionId = storedSessionId;
+          QRCodeString = `hc:${sessionId}`;
+          SessionChannelName = `private-hc-${sessionId}`;
+        } else if (hasCredentials) {
+          log("[HashConnect] Found stored credentials without session, will create new session and auto-reconnect...");
+          // Session will be created in connect() function
+        }
         
         // Defer connection until page is fully loaded
         const attemptAutoConnect = () => {
-          log("[HashConnect] Attempting auto-connect with stored session...");
+          if (hasCredentials) {
+            log("[HashConnect] Attempting auto-connect with stored credentials...");
+          } else {
+            log("[HashConnect] Attempting auto-connect with stored session...");
+          }
+          
           connect().catch(error => {
             logError("[HashConnect] ❌ Auto-connect failed:", error);
             log("[HashConnect] Cleaning up failed session...");
@@ -337,6 +359,8 @@ const makeUserAgent = ({
             setTimeout(attemptAutoConnect, 100);
           });
         }
+      } else {
+        log("[HashConnect] No stored session or credentials found, manual connection required");
       }
     } catch (error) {
       logError("[HashConnect] Error checking for stored session:", error);
