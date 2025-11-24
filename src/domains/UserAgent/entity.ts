@@ -37,6 +37,9 @@ const makeUserAgent = ({
   let qrCodeGenerator: QRCodeConstructor | null = null;
   let QRCodeString: string | null = null;
   let SessionChannelName: string | null = null;
+  let tokenRefreshFailureCount = 0; // Track consecutive token refresh failures
+  const MAX_TOKEN_REFRESH_FAILURES = 3; // Disconnect after 3 consecutive failures
+  let tokenRefreshInProgress: Promise<string | null> | null = null; // Mutex for token refresh
   let profile: UserProfile = {
     address: null,
     signature: null,
@@ -94,6 +97,12 @@ const makeUserAgent = ({
       
       isConnected = false;
       isConnecting = false;
+      
+      // Reset token refresh failure counter and mutex on disconnect
+      tokenRefreshFailureCount = 0;
+      tokenRefreshInProgress = null;
+      log("[Pusher] Token refresh failure counter and mutex reset");
+      
       profile = {
         address: null,
         signature: null,
@@ -344,35 +353,121 @@ const makeUserAgent = ({
 
     getToken: async () => {
       try {
+        log("[getToken] Token request initiated");
+        
         if (!isConnected) {
-          logWarn("Not connected");
+          logWarn("[getToken] ⚠️ Not connected - cannot get token");
           return null;
         }
 
         if (!profile.accessToken) {
-          logWarn("No access token available");
+          logWarn("[getToken] ⚠️ No access token available in profile");
+          log("[getToken] 💡 User may need to authenticate");
           return null;
         }
 
+        log("[getToken] ✅ Connected with access token");
+        log("[getToken] Checking if token is expired...");
+        
         const expired = isExpired(profile.accessToken);
-        if (expired) {
+        
+        if (!expired) {
+          log("[getToken] ✅ Token is still valid, returning current token");
+          // Reset failure count on successful token use
+          tokenRefreshFailureCount = 0;
+          return profile.accessToken;
+        }
+        
+        // Check if a refresh is already in progress (race condition prevention)
+        if (tokenRefreshInProgress) {
+          log("[getToken] 🔒 Token refresh already in progress, waiting for it to complete...");
+          const result = await tokenRefreshInProgress;
+          log("[getToken] ✅ Waited for concurrent refresh, returning result");
+          return result;
+        }
+        
+        log("[getToken] ⚠️ Token is expired, attempting refresh...");
+        log(`[getToken] Current failure count: ${tokenRefreshFailureCount}/${MAX_TOKEN_REFRESH_FAILURES}`);
+        
+        if (tokenRefreshFailureCount >= MAX_TOKEN_REFRESH_FAILURES) {
+          logError(`[getToken] ❌ Max consecutive refresh failures reached (${MAX_TOKEN_REFRESH_FAILURES})`);
+          logError("[getToken] 🚫 Disconnecting user - requires re-authentication");
+          onDisconnect();
+          return null;
+        }
+        
+        // Create a promise for this refresh operation (acts as mutex)
+        tokenRefreshInProgress = (async () => {
           try {
+            log("[getToken] 📡 Calling getNewTokens()...");
             const { accessToken, refreshToken } = await getNewTokens();
+            
+            log("[getToken] ✅ New tokens received successfully!");
+            log("[getToken] Updating storage and profile...");
+            
             storage.setItem("hc:accessToken", accessToken);
             storage.setItem("hc:refreshToken", refreshToken);
             profile.accessToken = accessToken;
             profile.refreshToken = refreshToken;
+            
+            // Reset failure count on successful refresh
+            tokenRefreshFailureCount = 0;
+            log("[getToken] ✅ Token refresh complete, failure count reset");
+            
+            return accessToken;
           } catch (error) {
-            logError("Failed to refresh token:", error);
-            // Token refresh failed, user needs to reconnect
-            onDisconnect();
+            // Increment failure count
+            tokenRefreshFailureCount++;
+            
+            const err = error instanceof Error ? error : new Error(String(error));
+            logError(`[getToken] ❌ Token refresh failed (attempt ${tokenRefreshFailureCount}/${MAX_TOKEN_REFRESH_FAILURES}):`, {
+              error: err.message,
+              failureCount: tokenRefreshFailureCount
+            });
+            
+            // Check if this is an UNRECOVERABLE error (401, 403, missing credentials, invalid response)
+            // Use regex to match exact status codes (not 4010, 4013, etc.)
+            const isUnrecoverable = 
+              err.message.includes("No address") || 
+              err.message.includes("No refresh token") ||
+              /status: 401(?:\D|$)/.test(err.message) ||
+              /status: 403(?:\D|$)/.test(err.message) ||
+              err.message.includes("missing tokens");
+            
+            if (isUnrecoverable) {
+              logError("[getToken] 🚫 UNRECOVERABLE ERROR detected");
+              logError("[getToken] 💡 User credentials are invalid or missing");
+              logError("[getToken] 🚪 Disconnecting user - re-authentication required");
+              onDisconnect();
+              return null;
+            }
+            
+            // For transient errors, check if we've hit max failures
+            if (tokenRefreshFailureCount >= MAX_TOKEN_REFRESH_FAILURES) {
+              logError(`[getToken] 🚫 Max consecutive failures reached after transient errors`);
+              logError("[getToken] 💡 This may indicate persistent network issues or server problems");
+              logError("[getToken] 🚪 Disconnecting user - please try reconnecting");
+              onDisconnect();
+              return null;
+            }
+            
+            // For transient errors below threshold, return null but stay connected
+            logWarn(`[getToken] ⚠️ Transient error - staying connected`);
+            logWarn(`[getToken] 💡 Will retry on next getToken() call (${MAX_TOKEN_REFRESH_FAILURES - tokenRefreshFailureCount} attempts remaining)`);
+            logWarn(`[getToken] 💡 Application may need to handle null token gracefully or retry`);
+            
             return null;
+          } finally {
+            // Clear the mutex once the refresh completes (success or failure)
+            tokenRefreshInProgress = null;
+            log("[getToken] 🔓 Token refresh mutex released");
           }
-        }
-
-        return profile.accessToken;
+        })();
+        
+        // Wait for and return the result of the refresh operation
+        return await tokenRefreshInProgress;
       } catch (error) {
-        logError("Error getting token:", error);
+        logError("[getToken] ❌ Unexpected error in getToken:", error);
         return null;
       }
     },
