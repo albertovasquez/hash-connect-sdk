@@ -32,6 +32,10 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
         modal.innerHTML = `
               <div id="hash-connect-modal-content">
                   <button id="hash-connect-close-button">✕</button>
+                  <div id="hash-connect-status-indicator">
+                      <span id="hash-connect-status-dot" class="status-connecting"></span>
+                      <span id="hash-connect-status-text">Connecting...</span>
+                  </div>
                   <div id="hash-connect-content">
                     <h1>Hass Pass</h1>
                     <h2>Connect</h2>
@@ -139,5 +143,50 @@ export const showConnectedButtons = () => {
         }
     } catch (error) {
         logError("Error showing connected buttons:", error);
+    }
+};
+
+export const updateConnectionStatus = (
+    status: 'connecting' | 'connected' | 'disconnected' | 'failed' | 'reconnecting'
+) => {
+    try {
+        const statusDot = document.getElementById("hash-connect-status-dot");
+        const statusText = document.getElementById("hash-connect-status-text");
+        
+        if (!statusDot || !statusText) {
+            log('[Modal] Connection status elements not found (modal may be closed)');
+            return;
+        }
+
+        // Remove all status classes
+        statusDot.className = '';
+        
+        // Add appropriate class and text based on status
+        switch (status) {
+            case 'connecting':
+                statusDot.classList.add('status-connecting');
+                statusText.textContent = 'Connecting to Pusher...';
+                break;
+            case 'connected':
+                statusDot.classList.add('status-connected');
+                statusText.textContent = 'Connected';
+                break;
+            case 'disconnected':
+                statusDot.classList.add('status-disconnected');
+                statusText.textContent = 'Disconnected';
+                break;
+            case 'failed':
+                statusDot.classList.add('status-failed');
+                statusText.textContent = 'Connection Failed';
+                break;
+            case 'reconnecting':
+                statusDot.classList.add('status-reconnecting');
+                statusText.textContent = 'Reconnecting...';
+                break;
+        }
+        
+        log(`[Modal] Connection status updated to: ${status}`);
+    } catch (error) {
+        logError("Error updating connection status:", error);
     }
 };

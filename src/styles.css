@@ -117,3 +117,64 @@
     transform: translate(-50%, -50%);
     left: 50%;
 }
+
+/* Connection status indicator */
+#hash-connect-status-indicator {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 20px;
+    font-size: 0.75rem;
+    color: white;
+    z-index: 10;
+}
+
+#hash-connect-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+#hash-connect-status-dot.status-connecting {
+    background-color: #FFA500;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+#hash-connect-status-dot.status-connected {
+    background-color: #4CAF50;
+}
+
+#hash-connect-status-dot.status-disconnected {
+    background-color: #FF5252;
+}
+
+#hash-connect-status-dot.status-failed {
+    background-color: #D32F2F;
+    animation: pulse 1s ease-in-out 3;
+}
+
+#hash-connect-status-dot.status-reconnecting {
+    background-color: #FF9800;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+#hash-connect-status-text {
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
