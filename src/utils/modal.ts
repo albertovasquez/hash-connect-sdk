@@ -68,6 +68,21 @@ export const openModal = (onReady: () => void, onClose: () => void) => {
             logError('[Modal] ❌ Close button not found');
         }
 
+        const statusIndicator = document.getElementById("hash-connect-status-indicator");
+        if (statusIndicator) {
+            log('[Modal] ✅ Status indicator found, attaching click handler');
+            statusIndicator.addEventListener("click", () => {
+                try {
+                    log('[Modal] Status indicator clicked - reloading page');
+                    window.location.reload();
+                } catch (error) {
+                    logError("[Modal] Error in status indicator click handler:", error);
+                }
+            });
+        } else {
+            logError('[Modal] ❌ Status indicator not found');
+        }
+
         log('[Modal] Checking if onReady is a function:', typeof onReady === 'function');
         if (typeof onReady === 'function') {
             log('[Modal] Calling onReady callback...');
