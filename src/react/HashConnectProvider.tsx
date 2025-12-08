@@ -609,9 +609,12 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       }
       if (Array.isArray(userHeaders)) {
         // Array of tuples: [['Content-Type', 'application/json'], ...]
-        return userHeaders.some(([key]) => 
-          typeof key === 'string' && key.toLowerCase() === 'content-type'
-        );
+        // Validate each entry is an array before destructuring to handle malformed input
+        return userHeaders.some((entry) => {
+          if (!Array.isArray(entry) || entry.length < 2) return false;
+          const [key] = entry;
+          return typeof key === 'string' && key.toLowerCase() === 'content-type';
+        });
       }
       // Plain object
       return Object.keys(userHeaders).some(

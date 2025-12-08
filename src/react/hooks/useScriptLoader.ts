@@ -166,6 +166,8 @@ export function useScriptLoader(
           // Remove the failed script and let our retry logic handle it
           existingScript.remove();
           loadedScripts.delete(targetSrc);
+          // Delete the failed promise to allow retry attempts
+          loadingPromises.delete(targetSrc);
           
           const err = new Error(`Existing script failed to load: ${targetSrc}`);
           setLoading(false);
