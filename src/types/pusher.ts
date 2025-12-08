@@ -17,6 +17,8 @@ export interface PusherConnection {
 export interface PusherClient {
   subscribe: (channelName: string) => PusherChannel;
   unsubscribe: (channelName: string) => void;
+  channel: (channelName: string) => PusherChannel | null;
+  allChannels: () => PusherChannel[];
   disconnect: () => void;
   connection: PusherConnection;
 }

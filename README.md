@@ -7,6 +7,18 @@
 
 HashConnect SDK provides a simple and secure way to integrate HASH Pass authentication into your web applications. It offers seamless wallet connection, token management, and user authentication through QR code scanning.
 
+## 🎉 What's New in v2.0.0
+
+**Production-Ready Stability Release** - Comprehensive improvements to connection reliability:
+
+- ✅ **No more session loss after refresh** - Smart token validation prevents expired reconnections
+- ✅ **No more auth timeouts** - Proactive token refresh keeps sessions alive
+- ✅ **Better network resilience** - 5 reconnection attempts with automatic event re-binding
+- ✅ **Cross-tab synchronization** - Multiple tabs stay in sync
+- ✅ **Clean React integration** - Proper disconnect API and memoized hooks
+
+See [STABILITY_CHANGELOG.md](./STABILITY_CHANGELOG.md) for complete details.
+
 ## Features
 
 ✨ **Easy Integration** - Add authentication to your app in minutes  
@@ -16,7 +28,8 @@ HashConnect SDK provides a simple and secure way to integrate HASH Pass authenti
 🎨 **Customizable** - Style the UI to match your brand  
 ♻️ **Session Persistence** - Automatic reconnection on page refresh  
 🔄 **Smart Reconnection** - No page refresh needed after disconnect  
-⚛️ **React Support** - Built-in hooks and context provider included
+⚛️ **React Support** - Built-in hooks and context provider included  
+🛡️ **Production Ready** - Comprehensive stability improvements in v2.0
 
 ## Installation
 
@@ -151,6 +164,30 @@ Checks if a user is connected.
 
 ```javascript
 const isConnected = window.HASHConnect.isReady();
+```
+
+#### `disconnect(): void` **✨ New in v2.0**
+
+Programmatically disconnects the user and cleans up the session.
+
+```javascript
+window.HASHConnect.disconnect();
+```
+
+#### `getClubId(): string | null`
+
+Gets the club ID of the connected user (if available).
+
+```javascript
+const clubId = window.HASHConnect.getClubId();
+```
+
+#### `getClubName(): string | null`
+
+Gets the club name of the connected user (if available).
+
+```javascript
+const clubName = window.HASHConnect.getClubName();
 ```
 
 ## Events

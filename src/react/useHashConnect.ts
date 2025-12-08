@@ -38,6 +38,26 @@ export interface UseHashConnectReturn {
   makeAuthRequest: <T>(url: string, options?: RequestInit) => Promise<T>;
 }
 
+/**
+ * Helper to safely access storage - uses SDK's SafeStorage if available,
+ * falls back to localStorage otherwise
+ */
+function getStorage() {
+  if (window.HASHConnect && (window.HASHConnect as any)._storage) {
+    return (window.HASHConnect as any)._storage;
+  }
+  // Fallback to localStorage
+  return {
+    getItem: (key: string) => localStorage.getItem(key),
+    setItem: (key: string, value: string) => localStorage.setItem(key, value),
+    removeItem: (key: string) => localStorage.removeItem(key),
+    clear: () => {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('hc:'));
+      keys.forEach(k => localStorage.removeItem(k));
+    }
+  };
+}
+
 export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConnectReturn {
   const { debug = false, disclaimer } = options;
   
@@ -53,17 +73,18 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
 
   const scriptLoadedRef = useRef(false);
 
-  const log = (...args: any[]) => {
+  // Memoize log functions to prevent unnecessary callback recreations
+  const log = useCallback((...args: any[]) => {
     if (debug) {
       console.log('[useHashConnect]', ...args);
     }
-  };
+  }, [debug]);
 
-  const logError = (...args: any[]) => {
+  const logError = useCallback((...args: any[]) => {
     if (debug) {
       console.error('[useHashConnect]', ...args);
     }
-  };
+  }, [debug]);
 
   useEffect(() => {
     log('Hook mounted, initializing...');
@@ -100,9 +121,10 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
       if (eventType === "connected") {
         log('✅ Connected event received, updating state...');
         
-        // Get clubId from localStorage
-        const storedClubId = localStorage.getItem('hc:clubId');
-        const storedClubName = localStorage.getItem('hc:clubName');
+        // Use safe storage access
+        const storage = getStorage();
+        const storedClubId = storage.getItem('hc:clubId');
+        const storedClubName = storage.getItem('hc:clubName');
 
         setState((prev) => ({
           ...prev,
@@ -137,9 +159,10 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
         if (user?.address) {
           log('✅ Found existing user connection:', user.address);
           
-          // Get clubId from localStorage
-          const storedClubId = localStorage.getItem('hc:clubId');
-          const storedClubName = localStorage.getItem('hc:clubName');
+          // Use safe storage access
+          const storage = getStorage();
+          const storedClubId = storage.getItem('hc:clubId');
+          const storedClubName = storage.getItem('hc:clubName');
           
           setState((prev) => ({
             ...prev,
@@ -160,7 +183,7 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
       document.removeEventListener("hash-connect-event", handleHashConnectEvent);
       clearInterval(checkConnection);
     };
-  }, [debug]);
+  }, [debug, disclaimer, log, logError]);
 
   const connect = useCallback(async () => {
     log('🔗 Connect method called');
@@ -181,45 +204,65 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
     log('Setting loading state to true...');
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
+    // Add timeout to prevent stuck loading state
+    const loadingTimeout = setTimeout(() => {
+      log('⏱️ Connection timeout after 30 seconds');
+      setState((prev) => {
+        if (prev.isLoading) {
+          logError('❌ Loading state stuck, resetting with timeout error');
+          return { 
+            ...prev, 
+            isLoading: false, 
+            error: 'Connection timeout - please try again' 
+          };
+        }
+        return prev;
+      });
+    }, 30000); // 30 second timeout
+
     try {
       log('Calling window.HASHConnect.connect()...');
       await window.HASHConnect.connect();
       log('✅ Connect call completed');
+      clearTimeout(loadingTimeout);
+      // Explicitly clear loading state on success, don't rely solely on event
+      setState((prev) => ({
+        ...prev,
+        isLoading: false,
+      }));
     } catch (error) {
       logError('❌ Error during connect:', error);
+      clearTimeout(loadingTimeout);
       setState((prev) => ({
         ...prev,
         isLoading: false,
         error: error instanceof Error ? error.message : "Connection failed",
       }));
     }
-  }, [debug]);
+  }, [debug, log, logError]);
 
   const disconnect = useCallback(() => {
     log('🔌 Disconnect method called');
     
-    // For React users, we need to:
-    // 1. Clear storage (UserAgent will detect this on next connect and reset its state)
-    // 2. Dispatch the event to update React state
     try {
-      log('Cleaning up connection state...');
+      log('Calling SDK disconnect method...');
       
-      // Check if vanilla JS disconnect button exists
-      const disconnectBtn = document.getElementById("hash-connect-disconnect-btn");
-      if (disconnectBtn) {
-        log('Found vanilla JS disconnect button, using it...');
-        disconnectBtn.click();
+      // Use the proper SDK disconnect method if available
+      if (window.HASHConnect && typeof window.HASHConnect.disconnect === 'function') {
+        log('✅ Using SDK disconnect method');
+        window.HASHConnect.disconnect();
       } else {
-        log('No vanilla JS button, manually cleaning up...');
+        log('⚠️ SDK disconnect not available, falling back to manual cleanup');
         
-        // Clear storage
-        localStorage.removeItem('hc:sessionId');
-        localStorage.removeItem('hc:address');
-        localStorage.removeItem('hc:accessToken');
-        localStorage.removeItem('hc:refreshToken');
-        localStorage.removeItem('hc:signature');
-        localStorage.removeItem('hc:clubId');
-        localStorage.removeItem('hc:clubName');
+        // Fallback: manual cleanup
+        const storage = getStorage();
+        storage.removeItem('hc:sessionId');
+        storage.removeItem('hc:address');
+        storage.removeItem('hc:accessToken');
+        storage.removeItem('hc:refreshToken');
+        storage.removeItem('hc:signature');
+        storage.removeItem('hc:clubId');
+        storage.removeItem('hc:clubName');
         
         // Dispatch disconnected event
         const event = new CustomEvent('hash-connect-event', {
@@ -235,7 +278,7 @@ export function useHashConnect(options: UseHashConnectOptions = {}): UseHashConn
     } catch (error) {
       logError('❌ Error during disconnect:', error);
     }
-  }, [debug, log, logError]);
+  }, [log, logError]);
 
   const getToken = useCallback(async () => {
     log('🎫 getToken called');

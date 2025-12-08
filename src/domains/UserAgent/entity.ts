@@ -3,6 +3,7 @@ import { PusherClient } from "../../types/pusher";
 import { QRCodeConstructor } from "../../types/qrcode";
 import { UserProfile, UserTokens } from "../../types/user";
 import { log, logError, logWarn } from "../../config";
+import { parseJwt } from "../../utils/jwt";
 
 type ConnectFunction = (params: {
   openModal: () => void;
@@ -12,7 +13,9 @@ type ConnectFunction = (params: {
   getProfile: () => UserProfile;
   setToken: (accessToken: string, refreshToken: string) => void;
   onDisconnect: () => void;
-}) => void;
+  isExpired?: (token: string) => boolean;
+  getNewTokens?: () => Promise<UserTokens>;
+}) => Promise<void>;
 
 const makeUserAgent = ({
   connect: _connect,
@@ -40,6 +43,7 @@ const makeUserAgent = ({
   let tokenRefreshFailureCount = 0; // Track consecutive token refresh failures
   const MAX_TOKEN_REFRESH_FAILURES = 3; // Disconnect after 3 consecutive failures
   let tokenRefreshInProgress: Promise<string | null> | null = null; // Mutex for token refresh
+  let tokenRefreshTimer: ReturnType<typeof setInterval> | null = null; // Proactive token refresh timer
   let profile: UserProfile = {
     address: null,
     signature: null,
@@ -68,6 +72,119 @@ const makeUserAgent = ({
   } catch (error) {
       logError("Error loading profile from storage:", error);
   }
+
+  /**
+   * Start proactive token refresh monitoring
+   * Checks token expiry every 60 seconds and refreshes if < 5 minutes remaining
+   */
+  const startTokenMonitoring = () => {
+    if (tokenRefreshTimer) {
+      log('[TokenMonitor] Already running');
+      return; // Already running
+    }
+    
+    log('[TokenMonitor] Starting proactive token refresh monitoring');
+    tokenRefreshTimer = setInterval(async () => {
+      if (!isConnected || !profile.accessToken) {
+        return;
+      }
+      
+      // Ensure required functions are available
+      if (!isExpired || !getNewTokens) {
+        logWarn('[TokenMonitor] ⚠️ Token validation functions not available, skipping monitoring cycle');
+        return;
+      }
+      
+      try {
+        const expired = isExpired(profile.accessToken);
+        if (expired) {
+          log('[TokenMonitor] ⚠️ Token is expired, attempting proactive refresh...');
+        } else {
+          // Parse JWT to check time remaining (using parseJwt for URL-safe base64 handling)
+          const payload = parseJwt(profile.accessToken);
+          if (!payload?.exp) {
+            logWarn('[TokenMonitor] Unable to parse token expiry');
+            return;
+          }
+          
+          const expiresInMinutes = (payload.exp * 1000 - Date.now()) / 1000 / 60;
+          
+          // Refresh when 5 minutes remaining
+          if (expiresInMinutes > 5) {
+            // Token still has plenty of time
+            return;
+          }
+          
+          if (expiresInMinutes <= 0) {
+            log('[TokenMonitor] ⚠️ Token expired, refreshing...');
+          } else {
+            log(`[TokenMonitor] 🔄 Token expires in ${expiresInMinutes.toFixed(1)} minutes, proactively refreshing...`);
+          }
+        }
+        
+        // Check if a refresh is already in progress (prevent race with getToken)
+        if (tokenRefreshInProgress) {
+          log('[TokenMonitor] 🔒 Token refresh already in progress (via getToken), waiting...');
+          await tokenRefreshInProgress;
+          log('[TokenMonitor] ✅ Concurrent refresh completed, skipping this cycle');
+          return;
+        }
+        
+        // Create a promise for this refresh operation (acts as mutex)
+        tokenRefreshInProgress = (async () => {
+          try {
+            // Refresh the token
+            const newTokens = await getNewTokens();
+            
+            // Re-check connection state after await - disconnect may have occurred
+            if (!isConnected || !profile.accessToken) {
+              log('[TokenMonitor] ⚠️ Connection lost during token refresh, discarding new tokens');
+              return null;
+            }
+            
+            profile.accessToken = newTokens.accessToken;
+            profile.refreshToken = newTokens.refreshToken;
+            storage.setItem("hc:accessToken", newTokens.accessToken);
+            storage.setItem("hc:refreshToken", newTokens.refreshToken);
+            log('[TokenMonitor] ✅ Token refreshed successfully');
+            
+            return newTokens.accessToken;
+          } finally {
+            // Clear mutex after completion
+            tokenRefreshInProgress = null;
+          }
+        })();
+        
+        // Await the refresh operation
+        await tokenRefreshInProgress;
+        
+        // Reset failure count on success
+        tokenRefreshFailureCount = 0;
+      } catch (error) {
+        logError('[TokenMonitor] ❌ Proactive token refresh failed:', error);
+        tokenRefreshFailureCount++;
+        
+        if (tokenRefreshFailureCount >= MAX_TOKEN_REFRESH_FAILURES) {
+          logError('[TokenMonitor] 🚫 Max refresh failures reached, disconnecting...');
+          stopTokenMonitoring();
+          onDisconnect();
+        }
+      }
+    }, 60000); // Check every minute
+    
+    log('[TokenMonitor] ✅ Token monitoring started');
+  };
+
+  /**
+   * Stop proactive token refresh monitoring
+   */
+  const stopTokenMonitoring = () => {
+    if (tokenRefreshTimer) {
+      clearInterval(tokenRefreshTimer);
+      tokenRefreshTimer = null;
+      log('[TokenMonitor] Token monitoring stopped');
+    }
+  };
 
   const onDisconnect = () => {
     try {
@@ -106,7 +223,8 @@ const makeUserAgent = ({
       // Reset token refresh failure counter and mutex on disconnect
       tokenRefreshFailureCount = 0;
       tokenRefreshInProgress = null;
-      log("[Pusher] Token refresh failure counter and mutex reset");
+      stopTokenMonitoring(); // Stop proactive token refresh
+      log("[Pusher] Token refresh failure counter, mutex, and monitoring reset");
       
       profile = {
         address: null,
@@ -120,6 +238,54 @@ const makeUserAgent = ({
       logError("Error during disconnect:", error);
     }
   };
+
+  /**
+   * Cross-tab synchronization via storage events
+   * Keeps multiple tabs in sync when one disconnects or gets new tokens
+   * Registered after onDisconnect is defined to avoid reference errors
+   */
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (event) => {
+      if (!event.key?.startsWith('hc:')) return;
+      
+      log('[StorageSync] Storage changed in another tab:', event.key);
+      
+      // Another tab disconnected (token removed)
+      if (event.key === 'hc:accessToken' && !event.newValue && event.oldValue) {
+        log('[StorageSync] ⚠️ Disconnect detected from another tab');
+        // Stop our token monitoring
+        stopTokenMonitoring();
+        // Trigger disconnect to update our state
+        onDisconnect();
+        return;
+      }
+      
+      // Another tab got new tokens (sync them)
+      if (event.key === 'hc:accessToken' && event.newValue) {
+        log('[StorageSync] 🔄 Access token synced from another tab');
+        profile.accessToken = event.newValue;
+      }
+      
+      if (event.key === 'hc:refreshToken' && event.newValue) {
+        log('[StorageSync] 🔄 Refresh token synced from another tab');
+        profile.refreshToken = event.newValue;
+      }
+      
+      // Sync other profile fields
+      if (event.key === 'hc:address' && event.newValue) {
+        profile.address = event.newValue;
+      }
+      
+      if (event.key === 'hc:clubId' && event.newValue) {
+        profile.clubId = event.newValue;
+      }
+      
+      if (event.key === 'hc:clubName' && event.newValue) {
+        profile.clubName = event.newValue;
+      }
+    });
+    log('[StorageSync] ✅ Cross-tab synchronization enabled');
+  }
 
   const connect = async () => {
     log('[UserAgent] connect() called');
@@ -183,7 +349,7 @@ const makeUserAgent = ({
       log('[UserAgent] Checking if _connect function is provided...');
       if (_connect) {
         log('[UserAgent] ✅ _connect function found, calling it...');
-        _connect({
+        await _connect({
           openModal,
           pusherClient,
           channelName: SessionChannelName,
@@ -202,8 +368,16 @@ const makeUserAgent = ({
           setToken: (accessToken: string, refreshToken: string) => {
             profile.accessToken = accessToken;
             profile.refreshToken = refreshToken;
+            
+            // Start proactive token monitoring after successful authentication
+            if (accessToken && refreshToken) {
+              log('[UserAgent] Tokens set, starting proactive token monitoring...');
+              startTokenMonitoring();
+            }
           },
           onDisconnect,
+          isExpired,
+          getNewTokens,
         });
         log('[UserAgent] ✅ _connect function completed');
       } else {
@@ -393,6 +567,12 @@ const makeUserAgent = ({
         log("[getToken] ✅ Connected with access token");
         log("[getToken] Checking if token is expired...");
         
+        // Ensure required functions are available
+        if (!isExpired) {
+          logWarn("[getToken] ⚠️ Token validation not available, returning current token without expiry check");
+          return profile.accessToken;
+        }
+        
         const expired = isExpired(profile.accessToken);
         
         if (!expired) {
@@ -400,6 +580,14 @@ const makeUserAgent = ({
           // Reset failure count on successful token use
           tokenRefreshFailureCount = 0;
           return profile.accessToken;
+        }
+        
+        // Token is expired, attempt refresh
+        if (!getNewTokens) {
+          logError("[getToken] ❌ Token expired but getNewTokens not available");
+          logError("[getToken] 🚫 Disconnecting user - requires re-authentication");
+          onDisconnect();
+          return null;
         }
         
         // Check if a refresh is already in progress (race condition prevention)
@@ -427,6 +615,13 @@ const makeUserAgent = ({
             const { accessToken, refreshToken } = await getNewTokens();
             
             log("[getToken] ✅ New tokens received successfully!");
+            
+            // Re-check connection state after await - disconnect may have occurred
+            if (!isConnected || !profile.accessToken) {
+              log("[getToken] ⚠️ Connection lost during token refresh, discarding new tokens");
+              return null;
+            }
+            
             log("[getToken] Updating storage and profile...");
             
             storage.setItem("hc:accessToken", accessToken);
@@ -539,6 +734,32 @@ const makeUserAgent = ({
     },
     
     connect,
+    
+    disconnect: () => {
+      try {
+        log('[UserAgent] disconnect() called from public API');
+        onDisconnect();
+        
+        // Dispatch disconnect event for React components
+        const disconnectEvent = new CustomEvent("hash-connect-event", {
+          detail: {
+            eventType: "disconnected",
+            user: null
+          },
+        });
+        
+        try {
+          document.dispatchEvent(disconnectEvent);
+          log('[UserAgent] ✅ Disconnected event dispatched');
+        } catch (error) {
+          logError("[UserAgent] ❌ Error dispatching disconnect event:", error);
+        }
+        
+        log('[UserAgent] ✅ Disconnect completed successfully');
+      } catch (error) {
+        logError("[UserAgent] ❌ Error during disconnect:", error);
+      }
+    },
   });
 };
 

@@ -5,6 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2025-12-08
+
+### 🎉 Major Stability Release
+
+Version 2.0.0 represents a comprehensive overhaul of HashConnect SDK's connection stability and reliability. This release eliminates the most common authentication failures and provides a production-ready foundation.
+
+### Added
+
+#### Phase 1: Critical Stability Fixes
+
+- **Token Expiry Validation on Auto-Reconnect** - Tokens are now validated before auto-reconnect attempts, preventing "connected but expired" states
+- **Enhanced Reconnection Resilience** - Increased Pusher reconnection attempts from 3 to 5 for better desktop network handling
+- **React Loading State Protection** - Added 30-second timeout to prevent `isLoading` from getting stuck forever
+- **Consistent Storage Access** - Exposed `window.HASHConnect._storage` for React components to use SafeStorage consistently
+
+#### Phase 2: Core Stability Improvements
+
+- **Proactive Token Refresh** - Background monitoring refreshes tokens 5 minutes before expiry, preventing silent expiration during inactivity
+- **Cross-Tab Synchronization** - Multiple tabs now sync disconnections and token updates via storage events
+- **Event Re-binding After Reconnection** - Pusher events are automatically re-bound after network interruption recovery
+
+#### Phase 3: API Improvements
+
+- **Public Disconnect Method** - Exposed `window.HASHConnect.disconnect()` for clean programmatic disconnection
+- **React Hook Improvements** - Memoized log functions to prevent unnecessary re-renders and potential infinite loops
+
+### Changed
+
+- **Reconnection Configuration** - `maxAttempts` increased from 3 to 5 (provides ~30 seconds of retry time)
+- **Token Monitoring** - Added 60-second interval check for proactive token refresh
+- **React Callbacks** - All callbacks now properly memoized with correct dependency arrays
+- **Storage Access** - All React components now use SafeStorage instead of direct localStorage calls
+
+### Fixed
+
+- ✅ No more "session lost after page refresh" - Token validation prevents expired reconnections
+- ✅ No more "authentication stops working after 15-60 minutes" - Proactive refresh keeps tokens fresh
+- ✅ Better recovery from network interruptions - 5 reconnection attempts with event re-binding
+- ✅ Cross-tab state synchronization - Tabs stay in sync when one disconnects
+- ✅ React UI never stuck in loading state - 30-second timeout with error message
+- ✅ Clean disconnect method - No more DOM button clicking hacks
+- ✅ Performance improvements - Memoized callbacks prevent unnecessary re-renders
+
+### Breaking Changes
+
+**None for end users** - The public API (`connect()`, `disconnect()`, `getToken()`, etc.) remains unchanged. All breaking changes are internal architecture improvements.
+
+### Migration Guide
+
+No migration required! Simply update your package:
+
+```bash
+npm install @hashpass/connect@2.0.0
+```
+
+Your existing code will continue to work without changes. The v2.0.0 improvements happen automatically under the hood.
+
+### Technical Details
+
+**Files Modified:**
+
+- `src/utils/connect.ts` - Reconnection config, token validation, event re-binding
+- `src/domains/UserAgent/entity.ts` - Proactive refresh, cross-tab sync, disconnect API
+- `src/react/useHashConnect.ts` - Timeout, storage consistency, memoization
+- `src/react/HashConnectProvider.tsx` - Storage consistency, memoization
+- `src/index.ts` - Exposed storage for React components
+
+**Testing Recommendations:**
+
+1. Test auto-reconnect after page refresh with various token states
+2. Test long-running sessions (>60 minutes) to verify proactive refresh
+3. Test network interruptions with browser DevTools throttling
+4. Test cross-tab scenarios (disconnect in one tab, observe others)
+5. Test React loading timeout with simulated slow connections
+
+---
+
 ## [1.0.3] - 2025-11-08
 
 ### Fixed

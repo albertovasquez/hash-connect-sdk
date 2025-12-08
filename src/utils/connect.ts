@@ -3,13 +3,16 @@ import handleHashDisconnect from "../eventListeners/handleHashDisconnect";
 import setupUserSubscription from "../eventListeners/setupUserSubscription";
 import { storage } from "./storage";
 import { PusherClient, ConnectionState } from "../types/pusher";
+
+// Track if monitoring is already active to prevent duplicate listeners
+let isMonitoringActive = false;
 import { UserProfile } from "../types/user";
 import { log, logError, logWarn } from "../config";
 import { updateConnectionStatus } from "./modal";
 
 // Reconnection configuration
 const RECONNECT_CONFIG = {
-    maxAttempts: 3,
+    maxAttempts: 5, // Increased from 3 for better desktop network resilience
     baseDelay: 2000, // 2 seconds
     maxDelay: 30000, // 30 seconds
 };
@@ -17,6 +20,7 @@ const RECONNECT_CONFIG = {
 let reconnectAttempts = 0;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 let isManualDisconnect = false;
+let eventsAreBound = false; // Track if events are bound to prevent duplicates
 
 /**
  * Calculate exponential backoff delay for reconnection attempts
@@ -42,6 +46,107 @@ function clearReconnectTimeout() {
 }
 
 /**
+ * Bind or re-bind channel events
+ * Ensures events are properly bound after reconnection
+ */
+function bindChannelEvents(
+    channel: any,
+    pusherClient: PusherClient,
+    setProfile: (address: string, signature: string, accessToken: string, refreshToken: string) => void,
+    getProfile: () => UserProfile,
+    setToken: (accessToken: string, refreshToken: string) => void,
+    onDisconnect: () => void,
+    channelName: string,
+    isRebind: boolean = false
+) {
+    // Only unbind if this is a re-bind operation (not initial binding)
+    if (isRebind) {
+        log('[Pusher] Unbinding existing events before re-binding...');
+        // Unbind first to prevent duplicates
+        channel.unbind("client-send-authorization-to-site");
+        channel.unbind("client-send-unauthorization-to-site");
+        channel.unbind("client-hash-pass-connect");
+    }
+    
+    log(`[Pusher] Binding to event: client-send-authorization-to-site`);
+    channel.bind(
+        "client-send-authorization-to-site",
+        (data: {
+            address: string;
+            accessToken: string;
+            refreshToken: string;
+            clubId: string;
+            clubName: string;
+        }) => {
+            try {
+                log(`[Pusher] ✅ Received: client-send-authorization-to-site`, {
+                    address: data.address,
+                    hasAccessToken: !!data.accessToken,
+                    hasRefreshToken: !!data.refreshToken
+                });
+                
+                log('[Pusher] Calling handleHashConnect...');
+                handleHashConnect(data, setToken, onDisconnect);
+                log('[Pusher] ✅ handleHashConnect completed');
+            } catch (error) {
+                logError("[Pusher] Error handling authorization:", error);
+            }
+        }
+    );
+
+    log(`[Pusher] Binding to event: client-send-unauthorization-to-site`);
+    channel.bind(
+        "client-send-unauthorization-to-site",
+        (data: { address: string }) => {
+            try {
+                log(`[Pusher] ✅ Received: client-send-unauthorization-to-site`, {
+                    address: data.address
+                });
+                handleHashDisconnect(data, onDisconnect);
+            } catch (error) {
+                logError("[Pusher] Error handling unauthorization:", error);
+            }
+        }
+    );
+
+    log(`[Pusher] Binding to event: client-hash-pass-connect`);
+    channel.bind(
+        "client-hash-pass-connect",
+        (data: { address: string; signature: string }) => {
+            try {
+                log(`[Pusher] ✅ Received: client-hash-pass-connect`, {
+                    address: data.address,
+                    hasSignature: !!data.signature
+                });
+                
+                // Check if we're already fully connected with tokens
+                const profile = getProfile();
+                const hasAccessToken = storage.getItem("hc:accessToken");
+                const hasRefreshToken = storage.getItem("hc:refreshToken");
+                
+                if (hasAccessToken && hasRefreshToken && profile.address === data.address) {
+                    log(`[Pusher] ⏭️  Already connected to this address, skipping subscription setup`);
+                    return;
+                }
+                
+                setupUserSubscription(
+                    data,
+                    pusherClient,
+                    setProfile,
+                    profile,
+                    channelName
+                );
+            } catch (error) {
+                logError("[Pusher] Error setting up user subscription:", error);
+            }
+        }
+    );
+    
+    eventsAreBound = true;
+    log('[Pusher] ✅ All events bound successfully');
+}
+
+/**
  * Monitor Pusher connection state and handle reconnections
  */
 function monitorPusherConnection(
@@ -61,6 +166,12 @@ function monitorPusherConnection(
             return;
         }
 
+        // Prevent duplicate listener bindings if monitoring already active
+        if (isMonitoringActive) {
+            log('[Pusher] Connection monitoring already active, skipping duplicate setup');
+            return;
+        }
+
         log('[Pusher] Setting up connection state monitoring...');
 
         // Listen to all connection state changes
@@ -73,6 +184,26 @@ function monitorPusherConnection(
                     reconnectAttempts = 0; // Reset on successful connection
                     clearReconnectTimeout();
                     log('[Pusher] ✅ Successfully connected to Pusher');
+                    
+                    // Re-bind events after reconnection to ensure they still work
+                    if (eventsAreBound) {
+                        log('[Pusher] Re-binding events after reconnection...');
+                        const channel = pusherClient.channel(channelName);
+                        if (channel) {
+                            bindChannelEvents(
+                                channel,
+                                pusherClient,
+                                connectParams.setProfile,
+                                connectParams.getProfile,
+                                connectParams.setToken,
+                                connectParams.onDisconnect,
+                                channelName,
+                                true // isRebind = true for reconnection
+                            );
+                        } else {
+                            logWarn('[Pusher] Channel not found for event re-binding');
+                        }
+                    }
                     break;
                 
                 case 'connecting':
@@ -100,6 +231,10 @@ function monitorPusherConnection(
                     break;
             }
         });
+
+        // Mark monitoring as active to prevent duplicate listeners
+        isMonitoringActive = true;
+        log('[Pusher] ✅ Connection monitoring active');
 
         // Set initial status
         const currentState = pusherClient.connection.state as ConnectionState;
@@ -162,7 +297,7 @@ function handleConnectionFailure(
     }, delay);
 }
 
-export default function connect({
+export default async function connect({
     openModal,
     pusherClient,
     channelName,
@@ -170,6 +305,8 @@ export default function connect({
     getProfile,
     setToken,
     onDisconnect,
+    isExpired,
+    getNewTokens,
 }: {
     openModal: () => void;
     pusherClient: PusherClient;
@@ -178,6 +315,8 @@ export default function connect({
     getProfile: () => UserProfile;
     setToken: (accessToken: string, refreshToken: string) => void;
     onDisconnect: () => void;
+    isExpired?: (token: string) => boolean;
+    getNewTokens?: () => Promise<{ accessToken: string; refreshToken: string }>;
 }) {
     try {
         // Reset manual disconnect flag
@@ -218,7 +357,61 @@ export default function connect({
         const profile = getProfile();
 
         if (storedAddress != null && storedToken != null && profile.address && profile.accessToken) {
-            log("[HashConnect] Auto-reconnecting with stored credentials...");
+            log("[HashConnect] Stored credentials found, checking token validity...");
+            
+            // Check if token validation is available
+            if (!isExpired) {
+                logWarn("[HashConnect] ⚠️ Token validation not available - proceeding with auto-reconnect without validation");
+                logWarn("[HashConnect] 💡 This may result in using expired tokens. Consider providing isExpired function.");
+                // Continue with auto-reconnect but without validation
+            } else if (isExpired(profile.accessToken)) {
+                // Token is expired - attempt refresh
+                log("[HashConnect] ⚠️ Stored token expired, attempting refresh...");
+                
+                if (getNewTokens && profile.refreshToken) {
+                    try {
+                        log("[HashConnect] 🔄 Refreshing token before auto-reconnect...");
+                        const newTokens = await getNewTokens();
+                        
+                        // Update profile with new tokens
+                        profile.accessToken = newTokens.accessToken;
+                        profile.refreshToken = newTokens.refreshToken;
+                        setToken(newTokens.accessToken, newTokens.refreshToken);
+                        
+                        // Update storage
+                        storage.setItem("hc:accessToken", newTokens.accessToken);
+                        storage.setItem("hc:refreshToken", newTokens.refreshToken);
+                        
+                        log("[HashConnect] ✅ Token refreshed successfully, proceeding with auto-reconnect");
+                    } catch (error) {
+                        logError("[HashConnect] ❌ Token refresh failed during auto-reconnect:", error);
+                        log("[HashConnect] Clearing expired credentials and starting fresh...");
+                        
+                        // Clear expired session
+                        storage.clear();
+                        
+                        // Start fresh connection flow
+                        log("[HashConnect] No stored credentials, starting new connection flow...");
+                        storage.removeItem("hc:sessionId");
+                        openModal();
+                        return;
+                    }
+                } else {
+                    logWarn("[HashConnect] ⚠️ Token expired but refresh not available, clearing session...");
+                    storage.clear();
+                    storage.removeItem("hc:sessionId");
+                    openModal();
+                    return;
+                }
+            } else {
+                log("[HashConnect] ✅ Token is valid, proceeding with auto-reconnect");
+            }
+            
+            log("[HashConnect] Auto-reconnecting with valid credentials...");
+            
+            // Bind events before triggering auto-reconnect
+            bindChannelEvents(channel, pusherClient, setProfile, getProfile, setToken, onDisconnect, channelName, false);
+            
             openModal();
             handleHashConnect(
                 {
@@ -238,79 +431,8 @@ export default function connect({
             openModal();
         }
 
-        log(`[Pusher] Binding to event: client-send-authorization-to-site`);
-        channel.bind(
-            "client-send-authorization-to-site",
-            (data: {
-                address: string;
-                accessToken: string;
-                refreshToken: string;
-                clubId: string;
-                clubName: string;
-            }) => {
-                try {
-                    log(`[Pusher] ✅ Received: client-send-authorization-to-site`, {
-                        address: data.address,
-                        hasAccessToken: !!data.accessToken,
-                        hasRefreshToken: !!data.refreshToken
-                    });
-                    
-                    log('[Pusher] Calling handleHashConnect...');
-                    handleHashConnect(data, setToken, onDisconnect);
-                    log('[Pusher] ✅ handleHashConnect completed');
-                } catch (error) {
-                    logError("[Pusher] Error handling authorization:", error);
-                }
-            }
-        );
-
-        log(`[Pusher] Binding to event: client-send-unauthorization-to-site`);
-        channel.bind(
-            "client-send-unauthorization-to-site",
-            (data: { address: string }) => {
-                try {
-                    log(`[Pusher] ✅ Received: client-send-unauthorization-to-site`, {
-                        address: data.address
-                    });
-                    handleHashDisconnect(data, onDisconnect);
-                } catch (error) {
-                    logError("[Pusher] Error handling unauthorization:", error);
-                }
-            }
-        );
-
-        log(`[Pusher] Binding to event: client-hash-pass-connect`);
-        channel.bind(
-            "client-hash-pass-connect",
-            (data: { address: string; signature: string }) => {
-                try {
-                    log(`[Pusher] ✅ Received: client-hash-pass-connect`, {
-                        address: data.address,
-                        hasSignature: !!data.signature
-                    });
-                    
-                    // Check if we're already fully connected with tokens
-                    const profile = getProfile();
-                    const hasAccessToken = storage.getItem("hc:accessToken");
-                    const hasRefreshToken = storage.getItem("hc:refreshToken");
-                    
-                    if (hasAccessToken && hasRefreshToken && profile.address === data.address) {
-                        log(`[Pusher] ⏭️  Already connected to this address, skipping subscription setup`);
-                        return;
-                    }
-                    
-                    setupUserSubscription(
-                        data,
-                        pusherClient,
-                        setProfile,
-                        profile,
-                        channelName
-                    );
-                } catch (error) {
-                    logError("[Pusher] Error setting up user subscription:", error);
-                }
-            }
-        );
+        // Bind all channel events for new connections
+        bindChannelEvents(channel, pusherClient, setProfile, getProfile, setToken, onDisconnect, channelName, false);
     } catch (ex) {
         logError("Error connecting to HASH Pass:", ex);
         updateConnectionStatus('failed');
@@ -325,6 +447,8 @@ export function disconnect(pusherClient: PusherClient | null) {
         isManualDisconnect = true;
         clearReconnectTimeout();
         reconnectAttempts = 0;
+        eventsAreBound = false; // Reset events bound flag for next connection
+        isMonitoringActive = false; // Reset monitoring flag for next connection
         
         if (pusherClient) {
             log('[Pusher] Manually disconnecting...');

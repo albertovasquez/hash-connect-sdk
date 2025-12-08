@@ -28,7 +28,7 @@ function createConnectButton(wrapper: HTMLElement) {
             try {
                 // Safely accessing HASHConnect.connect using optional chaining
                 if (window.HASHConnect && typeof window.HASHConnect.connect === 'function') {
-                    window.HASHConnect.connect();
+                    await window.HASHConnect.connect();
                 } else {
                     logError("HASHConnect.connect is not available");
                 }
@@ -78,3 +78,8 @@ if (document.readyState === 'loading') {
 
 // Initialize or add the HASHConnect property on the window object
 window.HASHConnect = window.HASHConnect || UserAgent;
+
+// Expose storage for React components to use SafeStorage consistently
+if (window.HASHConnect) {
+    (window.HASHConnect as any)._storage = storage;
+}
