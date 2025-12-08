@@ -211,6 +211,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     address: state.userAddress,
     debug,
     authEndpoint,
+    onLog,
     onTokensRefreshed: (tokens) => {
       log('✅ Tokens refreshed proactively');
       

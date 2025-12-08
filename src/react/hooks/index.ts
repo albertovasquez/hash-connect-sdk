@@ -27,5 +27,6 @@ export { useTokenRefresh } from './useTokenRefresh';
 export type { 
   UseTokenRefreshOptions, 
   UseTokenRefreshReturn, 
-  TokenRefreshError 
+  TokenRefreshError,
+  LogEvent as TokenRefreshLogEvent
 } from './useTokenRefresh';

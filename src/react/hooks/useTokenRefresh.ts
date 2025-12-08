@@ -6,6 +6,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { CONFIG } from '../../config';
 
+export interface LogEvent {
+  message: string;
+  timestamp: Date;
+}
+
 // Token refresh configuration
 const TOKEN_REFRESH_CONFIG = {
   /** Minutes before expiry to trigger proactive refresh */
@@ -33,6 +38,8 @@ export interface UseTokenRefreshOptions {
   debug?: boolean;
   /** Auth endpoint URL (defaults to CONFIG.AUTH_ENDPOINT) */
   authEndpoint?: string;
+  /** Callback for log events (suppresses console output when provided) */
+  onLog?: (event: LogEvent) => void;
 }
 
 export interface UseTokenRefreshReturn {
@@ -190,6 +197,7 @@ export function useTokenRefresh(options: UseTokenRefreshOptions): UseTokenRefres
     onRefreshFailed,
     debug = false,
     authEndpoint = CONFIG.AUTH_ENDPOINT,
+    onLog,
   } = options;
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -224,8 +232,34 @@ export function useTokenRefresh(options: UseTokenRefreshOptions): UseTokenRefres
   }, [onRefreshFailed]);
 
   const log = useCallback((...args: unknown[]) => {
-    if (debug) console.log('[useTokenRefresh]', ...args);
-  }, [debug]);
+    const message = args.map(arg => {
+      // Handle Error objects specially to preserve message and stack
+      if (arg instanceof Error) {
+        return `${arg.name}: ${arg.message}${arg.stack ? '\n' + arg.stack : ''}`;
+      }
+      // Handle other objects
+      if (typeof arg === 'object' && arg !== null) {
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      }
+      // Handle primitives
+      return String(arg);
+    }).join(' ');
+
+    // If onLog callback is provided, use it (suppresses console output)
+    if (onLog) {
+      onLog({ message: `[useTokenRefresh] ${message}`, timestamp: new Date() });
+      return;
+    }
+
+    // Otherwise, use console if debug is enabled
+    if (debug) {
+      console.log('[useTokenRefresh]', ...args);
+    }
+  }, [debug, onLog]);
 
   /**
    * Perform the actual token refresh API call
