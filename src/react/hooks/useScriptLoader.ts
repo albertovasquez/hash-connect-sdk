@@ -84,14 +84,6 @@ export function useScriptLoader(
   useEffect(() => {
     onErrorRef.current = onError;
   }, [onError]);
-  
-  useEffect(() => {
-    currentSrcRef.current = src;
-  }, [src]);
-  
-  useEffect(() => {
-    currentRetriesRef.current = retries;
-  }, [retries]);
 
   // Clear any pending retry timeout
   const clearRetryTimeout = useCallback(() => {
@@ -280,6 +272,11 @@ export function useScriptLoader(
   useEffect(() => {
     // SSR safety check
     if (typeof window === 'undefined') return;
+
+    // Update ref SYNCHRONOUSLY before calling loadScript to prevent race condition
+    // This ensures the ref is up-to-date when loadScript checks it at line 109
+    currentSrcRef.current = src;
+    currentRetriesRef.current = retries;
 
     // Clear any pending retry from previous src
     clearRetryTimeout();
