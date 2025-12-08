@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [3.1.0] - 2025-12-08
+
+### 🎉 Enhanced Developer Experience
+
+Version 3.1.0 adds four carefully designed features that address real pain points observed in production usage. All features are backward compatible and opt-in.
+
+### Added
+
+#### 1. `isInitialized` State (Priority: CRITICAL)
+
+- Added `isInitialized: boolean` to `AuthState` interface and `useHashConnect()` return value
+- Eliminates setTimeout workarounds when checking for existing sessions on mount
+- SDK sets `isInitialized: false` initially, then `true` after localStorage check completes
+- **Problem solved**: Apps can now distinguish "SDK still checking" from "no session found"
+- **Usage**: `if (!isInitialized) return <Spinner />` - proper loading states without guessing
+
+#### 2. Non-React Token Access (Priority: HIGH)
+
+- Added `getAccessToken(): Promise<string | null>` - async function with auto-refresh
+- Added `getAuthState()` - sync function for quick auth checks
+- Works in API interceptors, utility functions, and other non-React code
+- **Problem solved**: No more bypassing SDK to read tokens directly from localStorage
+- **Usage**: `import { getAccessToken } from '@hashpass/connect'` in any file
+- **Implementation**: New file `src/standalone.ts` with zero React dependencies
+
+#### 3. Auth State Change Callbacks (Priority: MEDIUM)
+
+- Added `onAuthStateChange?: (event) => void` prop to `HashConnectProvider`
+- Fires on: `'connected'`, `'disconnected'`, `'refreshed'`
+- Event structure: `{ type, isConnected, userAddress, clubId }`
+- **Problem solved**: Easy routing redirects and analytics without useEffect watchers
+- **Usage**: `<HashConnectProvider onAuthStateChange={event => router.push('/login')} />`
+
+#### 4. Integrated Logging (Priority: LOW)
+
+- Added `onLog?: (event) => void` prop to `HashConnectProvider`
+- Receives: `{ message: string, timestamp: Date }`
+- Console logging automatically suppressed when `onLog` is provided
+- **Problem solved**: Send SDK logs to Sentry/Datadog without duplicate console output
+- **Usage**: `<HashConnectProvider onLog={event => logger.debug(event.message)} />`
+
+### Changed
+
+- `HashConnectProvider` now accepts two new optional props: `onAuthStateChange` and `onLog`
+- localStorage restoration `useEffect` now sets `isInitialized` state in both success and failure paths
+- Token refresh callback now fires `onAuthStateChange` event with type `'refreshed'`
+- `log()` function modified to prioritize `onLog` callback over console output
+
+### Documentation
+
+- Updated `README.md` with v3.1.0 feature overview and examples
+- Updated `REACT_INTEGRATION_GUIDE.md` with comprehensive v3.1.0 patterns
+- All four features documented with usage examples and rationale
+
+### Technical Details
+
+- **New files**: `src/standalone.ts` (non-React token access functions)
+- **Modified files**:
+  - `src/react/HashConnectContext.ts` - added `isInitialized` to `AuthState`
+  - `src/react/HashConnectProvider.tsx` - added callbacks, event firing, and log routing
+  - `src/react/useHashConnect.ts` - exposed `isInitialized` in return type
+  - `src/react/index.ts` - exported new standalone functions
+- **Breaking changes**: None - all features are additive and opt-in
+
+### References
+
+- Improvements based on production feedback from PokerID integration
+- See `V3_IMPROVEMENT_ROADMAP.md` for detailed rationale and implementation notes
+
+---
+
+## [3.0.3] - 2025-12-08
+
 ### Fixed
 
 - **Object Not Extensible Error** - Fixed runtime error "Cannot add property \_storage, object is not extensible" by including `_storage` in the object returned by `makeUserAgent()` instead of attempting to add it after object creation.

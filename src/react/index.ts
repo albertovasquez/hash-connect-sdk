@@ -46,7 +46,12 @@ import '../styles.css';
 // ============================================================================
 
 export { HashConnectProvider, useHashConnectContext } from './HashConnectProvider';
-export type { HashConnectProviderProps, HashConnectConfig } from './HashConnectProvider';
+export type { 
+  HashConnectProviderProps, 
+  HashConnectConfig,
+  AuthStateChangeEvent,
+  LogEvent,
+} from './HashConnectProvider';
 
 export { useHashConnect } from './useHashConnect';
 export type { UseHashConnectReturn } from './useHashConnect';
@@ -99,6 +104,12 @@ export type {
   QRCodeDisplayProps,
   ConnectionStatusIndicatorProps,
 } from './components';
+
+// ============================================================================
+// Standalone Functions (Non-React)
+// ============================================================================
+
+export { getAccessToken, getAuthState } from '../standalone';
 
 // ============================================================================
 // Types from core

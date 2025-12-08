@@ -7,6 +7,17 @@
 
 HashConnect SDK provides a simple and secure way to integrate HASH Pass authentication into your React applications. It offers seamless wallet connection, token management, and user authentication through QR code scanning.
 
+## 🎉 What's New in v3.1.0
+
+**Enhanced Developer Experience** - Four new features for better control:
+
+- ✅ **`isInitialized` state** - Proper loading states without setTimeout workarounds
+- ✅ **Non-React token access** - Use SDK in API interceptors and utility functions
+- ✅ **Auth state callbacks** - React to connection changes for routing and analytics
+- ✅ **Consolidated logging** - Integrate SDK logs with your logging system
+
+See [CHANGELOG.md](./CHANGELOG.md) for full details.
+
 ## 🎉 What's New in v3.0.0
 
 **React-Only Architecture** - Complete rewrite for modern React applications:
@@ -76,6 +87,7 @@ import { useHashConnect } from "@hashpass/connect";
 
 function MyComponent() {
   const {
+    isInitialized, // NEW in v3.1.0
     isConnected,
     userAddress,
     connect,
@@ -84,6 +96,11 @@ function MyComponent() {
     isLoading,
     error,
   } = useHashConnect();
+
+  // Wait for SDK to check localStorage before showing UI
+  if (!isInitialized) {
+    return <div>Loading...</div>;
+  }
 
   const handleApiCall = async () => {
     const token = await getToken();
@@ -135,6 +152,16 @@ The context provider that manages all authentication state.
     pusherCluster: "us2",
     authEndpoint: "https://api.example.com",
   }}
+  onAuthStateChange={(event) => {
+    // NEW in v3.1.0: React to auth changes
+    if (event.type === "disconnected") {
+      router.push("/login");
+    }
+  }}
+  onLog={(event) => {
+    // NEW in v3.1.0: Integrate with your logging system
+    logger.debug("[HashConnect]", event.message);
+  }}
 >
   {children}
 </HashConnectProvider>
@@ -147,6 +174,7 @@ The main hook for accessing authentication state and methods.
 ```tsx
 const {
   // State
+  isInitialized, // boolean - Whether SDK finished initial localStorage check (v3.1.0+)
   isConnected, // boolean - Whether user is connected
   isLoading, // boolean - Whether connection is in progress
   isModalOpen, // boolean - Whether modal is visible
@@ -242,6 +270,102 @@ export default function App({ Component, pageProps }) {
 ```
 
 ## Advanced Usage
+
+### New in v3.1.0
+
+#### Proper Initialization Handling
+
+```tsx
+function App() {
+  const { isInitialized, isConnected } = useHashConnect();
+
+  // Show spinner while SDK checks for existing session
+  if (!isInitialized) {
+    return <LoadingSpinner />;
+  }
+
+  // Now we know for sure if user is connected or not
+  if (!isConnected) {
+    return <LoginScreen />;
+  }
+
+  return <Dashboard />;
+}
+```
+
+#### Non-React Token Access
+
+Use SDK functions in API interceptors and utility code:
+
+```typescript
+// api.ts (non-React file)
+import { getAccessToken, getAuthState } from "@hashpass/connect";
+
+// In an API interceptor
+api.interceptors.request.use(async (config) => {
+  const token = await getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Quick synchronous check
+function checkAuth() {
+  const { isAuthenticated, userAddress } = getAuthState();
+  return isAuthenticated;
+}
+```
+
+#### Auth State Change Callbacks
+
+React to authentication events:
+
+```tsx
+<HashConnectProvider
+  onAuthStateChange={(event) => {
+    console.log("Auth event:", event.type);
+
+    if (event.type === "connected") {
+      analytics.track("user_connected", { address: event.userAddress });
+      router.push("/dashboard");
+    }
+
+    if (event.type === "disconnected") {
+      analytics.track("user_disconnected");
+      router.push("/login");
+    }
+
+    if (event.type === "refreshed") {
+      console.log("Token refreshed silently");
+    }
+  }}
+>
+  <App />
+</HashConnectProvider>
+```
+
+#### Integrated Logging
+
+Send SDK logs to your logging system:
+
+```tsx
+import { logger } from "./logger"; // Your app's logger
+
+<HashConnectProvider
+  onLog={(event) => {
+    logger.debug({
+      source: "hashconnect",
+      message: event.message,
+      timestamp: event.timestamp,
+    });
+  }}
+>
+  <App />
+</HashConnectProvider>;
+```
+
+**Note:** When `onLog` is provided, console logging is automatically suppressed (even if `debug={true}`).
 
 ### Custom Components
 

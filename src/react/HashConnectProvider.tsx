@@ -37,6 +37,18 @@ export type { AuthState, HashConnectContextType } from './HashConnectContext';
 // Types
 // ============================================================================
 
+export interface AuthStateChangeEvent {
+  type: 'connected' | 'disconnected' | 'refreshed';
+  isConnected: boolean;
+  userAddress: string | null;
+  clubId: string | null;
+}
+
+export interface LogEvent {
+  message: string;
+  timestamp: Date;
+}
+
 export interface HashConnectConfig {
   /** Pusher app key */
   pusherKey?: string;
@@ -54,6 +66,10 @@ export interface HashConnectProviderProps {
   disclaimer?: string;
   /** Custom configuration (optional, uses defaults) */
   config?: HashConnectConfig;
+  /** Callback fired on auth state changes (connected, disconnected, refreshed) */
+  onAuthStateChange?: (event: AuthStateChangeEvent) => void;
+  /** Callback for SDK log events (suppresses console output when provided) */
+  onLog?: (event: LogEvent) => void;
 }
 
 // ============================================================================
@@ -106,6 +122,8 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
   debug = false,
   disclaimer,
   config = {},
+  onAuthStateChange,
+  onLog,
 }) => {
   // Merge config with defaults
   const pusherKey = config.pusherKey || CONFIG.PUSHER_KEY;
@@ -117,8 +135,21 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
   // =========================================================================
 
   const log = useCallback((...args: unknown[]) => {
-    if (debug) console.log('[HashConnect]', ...args);
-  }, [debug]);
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+    ).join(' ');
+
+    // If onLog callback is provided, use it (suppresses console output)
+    if (onLog) {
+      onLog({ message, timestamp: new Date() });
+      return;
+    }
+
+    // Otherwise, use debug prop for console logging
+    if (debug) {
+      console.log('[HashConnect]', ...args);
+    }
+  }, [debug, onLog]);
 
   // =========================================================================
   // State
@@ -168,11 +199,26 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     authEndpoint,
     onTokensRefreshed: (tokens) => {
       log('✅ Tokens refreshed proactively');
-      setState(prev => ({
-        ...prev,
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      }));
+      
+      // Use setState callback to get current state values (not stale closure)
+      setState(prev => {
+        const newState = {
+          ...prev,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        };
+        
+        // Fire callback with current state values at execution time
+        onAuthStateChange?.({
+          type: 'refreshed',
+          isConnected: true,
+          userAddress: newState.userAddress,
+          clubId: newState.clubId,
+        });
+        
+        return newState;
+      });
+      
       storage.setItem(STORAGE_KEYS.ACCESS_TOKEN, tokens.accessToken);
       storage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken);
     },
@@ -204,10 +250,15 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
         log('⚠️ Stored token is invalid or expired, clearing session');
         // Clear invalid session from storage
         storage.clear();
+        setState(prev => ({
+          ...prev,
+          isInitialized: true,
+        }));
         return;
       }
       
       const storedSessionId = storage.getItem(STORAGE_KEYS.SESSION_ID);
+      const storedClubId = storage.getItem(STORAGE_KEYS.CLUB_ID);
       
       // Update ref to keep it in sync with restored state
       sessionIdRef.current = storedSessionId;
@@ -218,13 +269,26 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
         refreshToken: storage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
         userAddress: storedAddress,
         signature: storage.getItem(STORAGE_KEYS.SIGNATURE),
-        clubId: storage.getItem(STORAGE_KEYS.CLUB_ID),
+        clubId: storedClubId,
         clubName: storage.getItem(STORAGE_KEYS.CLUB_NAME),
         sessionId: storedSessionId,
         isConnected: true,
+        isInitialized: true,
       }));
+      
+      // Fire auth state change callback for restored session
+      onAuthStateChange?.({
+        type: 'connected',
+        isConnected: true,
+        userAddress: storedAddress,
+        clubId: storedClubId,
+      });
     } else {
       log('ℹ️ No stored session found');
+      setState(prev => ({
+        ...prev,
+        isInitialized: true,
+      }));
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -244,7 +308,18 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       // Use strict null check - empty string is a stored value, not a removal
       if (event.key === 'hc:accessToken' && event.newValue === null && event.oldValue) {
         log('🔌 Disconnect detected from another tab');
-        setState(initialAuthState);
+        setState({
+          ...initialAuthState,
+          isInitialized: true, // Preserve initialization status
+        });
+        
+        // Fire callback for cross-tab disconnect
+        onAuthStateChange?.({
+          type: 'disconnected',
+          isConnected: false,
+          userAddress: null,
+          clubId: null,
+        });
         return;
       }
 
@@ -296,12 +371,20 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
           sessionId: storedSessionId,
           isConnected: shouldBeConnected,
         }));
+        
+        // Fire callback for cross-tab state changes
+        onAuthStateChange?.({
+          type: shouldBeConnected ? 'connected' : 'disconnected',
+          isConnected: shouldBeConnected,
+          userAddress: storedAddress,
+          clubId: storedClubId,
+        });
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [log, storage]);
+  }, [log, storage, onAuthStateChange]);
 
   // =========================================================================
   // Pusher Event Handlers
@@ -406,7 +489,15 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     }));
 
     log('✅ Connection complete!');
-  }, [storage, log]);
+    
+    // Fire auth state change callback
+    onAuthStateChange?.({
+      type: 'connected',
+      isConnected: true,
+      userAddress: data.address,
+      clubId: data.clubId || null,
+    });
+  }, [storage, log, onAuthStateChange]);
 
   /**
    * Disconnect and cleanup
@@ -414,6 +505,14 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
    */
   const handleDisconnect = useCallback(() => {
     log('🔌 Disconnecting...');
+
+    // Fire auth state change callback BEFORE state is cleared
+    onAuthStateChange?.({
+      type: 'disconnected',
+      isConnected: false,
+      userAddress: null,
+      clubId: null,
+    });
 
     // Clean up subscription_succeeded handler if it exists
     if (subscriptionSucceededHandlerRef.current && userChannelRef.current) {
@@ -442,11 +541,14 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     // Clear storage
     storage.clear();
 
-    // Reset state
-    setState(initialAuthState);
+    // Reset state but preserve isInitialized (already checked on mount)
+    setState({
+      ...initialAuthState,
+      isInitialized: true,
+    });
 
     log('✅ Disconnected');
-  }, [state.userAddress, unsubscribe, disconnectPusher, storage, log]);
+  }, [state.userAddress, unsubscribe, disconnectPusher, storage, log, onAuthStateChange]);
 
   // Keep ref in sync with current handleDisconnect
   useEffect(() => {

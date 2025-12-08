@@ -45,6 +45,8 @@ export type { HashConnectContextType } from './HashConnectContext';
 // ============================================================================
 
 export interface UseHashConnectReturn {
+  /** Whether SDK has completed initial localStorage check */
+  isInitialized: boolean;
   /** Whether user is connected */
   isConnected: boolean;
   /** Whether connection is in progress */
@@ -97,6 +99,7 @@ export function useHashConnect(): UseHashConnectReturn {
   }
 
   return {
+    isInitialized: context.isInitialized,
     isConnected: context.isConnected,
     isLoading: context.isLoading,
     isModalOpen: context.isModalOpen,

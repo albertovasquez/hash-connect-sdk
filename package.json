@@ -1,6 +1,6 @@
 {
   "name": "@hashpass/connect",
-  "version": "3.0.3",
+  "version": "3.1.0",
   "description": "HashConnect SDK v3 - React-only authentication and wallet integration for web applications",
   "main": "dist/hash-connect.js",
   "module": "dist/hash-connect.js",

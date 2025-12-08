@@ -10,6 +10,7 @@ import type { ConnectionState } from '../types/pusher';
 // ============================================================================
 
 export interface AuthState {
+  isInitialized: boolean;
   isConnected: boolean;
   isLoading: boolean;
   isModalOpen: boolean;
@@ -49,6 +50,7 @@ export interface HashConnectContextType extends AuthState {
 // ============================================================================
 
 export const initialAuthState: AuthState = {
+  isInitialized: false,
   isConnected: false,
   isLoading: false,
   isModalOpen: false,

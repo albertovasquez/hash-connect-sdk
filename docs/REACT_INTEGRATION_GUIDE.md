@@ -1,6 +1,6 @@
 # HashConnect SDK - Complete React Integration Guide
 
-**Version:** 2.0.1  
+**Version:** 3.1.0  
 **Last Updated:** December 8, 2025  
 **Target Audience:** React developers and AI assistants integrating HashConnect authentication
 
@@ -55,13 +55,17 @@ HashConnect SDK provides secure wallet authentication for web applications via Q
          └─── Local Storage
 ```
 
-### Key Features (v2.0+)
+### Key Features (v3.1+)
 
+- ✅ **`isInitialized` state** - Eliminates setTimeout workarounds
+- ✅ **Non-React token access** - Use SDK in API interceptors
+- ✅ **Auth state callbacks** - React to connection changes
+- ✅ **Integrated logging** - Send SDK logs to your logger
 - ✅ Automatic token refresh (proactive, 5 min before expiry)
 - ✅ Cross-tab synchronization
 - ✅ Network resilience (5 reconnection attempts)
 - ✅ TypeScript support
-- ✅ Zero breaking changes from v1.x
+- ✅ Zero breaking changes from v3.0
 
 ---
 
@@ -88,10 +92,11 @@ npm install @hashpass/connect
 Use this for most applications. Each component gets its own hook instance but shares the same underlying SDK state.
 
 ```tsx
-import { useHashConnect } from "@hashpass/connect/react";
+import { useHashConnect } from "@hashpass/connect";
 
 function MyApp() {
   const {
+    isInitialized, // NEW in v3.1.0
     isConnected,
     isLoading,
     userAddress,
@@ -104,6 +109,11 @@ function MyApp() {
   } = useHashConnect({
     debug: process.env.NODE_ENV === "development",
   });
+
+  // Wait for SDK to check localStorage
+  if (!isInitialized) {
+    return <div>Checking session...</div>;
+  }
 
   if (isLoading) {
     return <div>Connecting...</div>;
@@ -137,18 +147,24 @@ Use this when you need to access auth state deeply nested in your component tree
 
 ```tsx
 // App.tsx
-import { HashConnectProvider } from "@hashpass/connect/react";
+import { HashConnectProvider } from "@hashpass/connect";
 
 function App() {
   return (
-    <HashConnectProvider debug={process.env.NODE_ENV === "development"}>
+    <HashConnectProvider
+      debug={process.env.NODE_ENV === "development"}
+      onAuthStateChange={(event) => {
+        // NEW in v3.1.0: React to auth changes
+        console.log("Auth event:", event.type);
+      }}
+    >
       <YourRoutes />
     </HashConnectProvider>
   );
 }
 
 // AnyComponent.tsx
-import { useHashConnectContext } from "@hashpass/connect/react";
+import { useHashConnectContext } from "@hashpass/connect";
 
 function AnyComponent() {
   const { isConnected, userAddress, disconnect } = useHashConnectContext();
@@ -170,16 +186,144 @@ function AnyComponent() {
 
 ## Advanced Patterns
 
+### NEW in v3.1.0: Proper Initialization Check
+
+The `isInitialized` state eliminates the need for setTimeout workarounds:
+
+```tsx
+import { useHashConnect } from "@hashpass/connect";
+
+function App() {
+  const { isInitialized, isConnected } = useHashConnect();
+
+  // SDK is still checking localStorage for existing session
+  if (!isInitialized) {
+    return <Spinner />;
+  }
+
+  // Now we know for sure if user is authenticated or not
+  if (!isConnected) {
+    return <LoginScreen />;
+  }
+
+  return <Dashboard />;
+}
+```
+
+**Why this is better:**
+
+- No arbitrary timeout guessing
+- Proper loading states
+- Instant UI updates after check completes
+
+### NEW in v3.1.0: Non-React Token Access
+
+Use SDK functions outside React components (API interceptors, utility functions):
+
+```tsx
+// api.ts (non-React file)
+import { getAccessToken, getAuthState } from "@hashpass/connect";
+
+// Setup API interceptor
+api.interceptors.request.use(async (config) => {
+  const token = await getAccessToken(); // Auto-refreshes if expired
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Quick synchronous check (no refresh attempt)
+function requireAuth() {
+  const { isAuthenticated, userAddress } = getAuthState();
+  if (!isAuthenticated) {
+    throw new Error("Not authenticated");
+  }
+  return userAddress;
+}
+```
+
+**Available functions:**
+
+- `getAccessToken()` - Async, validates and refreshes if needed
+- `getAuthState()` - Sync, returns current state from localStorage
+
+### NEW in v3.1.0: Auth State Change Callbacks
+
+React to authentication events for routing, analytics, or UI updates:
+
+```tsx
+<HashConnectProvider
+  onAuthStateChange={(event) => {
+    // event.type: 'connected' | 'disconnected' | 'refreshed'
+
+    if (event.type === "connected") {
+      analytics.track("user_connected", {
+        address: event.userAddress,
+        clubId: event.clubId,
+      });
+      router.push("/dashboard");
+    }
+
+    if (event.type === "disconnected") {
+      analytics.track("user_disconnected");
+      router.push("/login");
+    }
+
+    if (event.type === "refreshed") {
+      // Token was refreshed silently in background
+      console.log("Token refreshed");
+    }
+  }}
+>
+  <App />
+</HashConnectProvider>
+```
+
+**Event structure:**
+
+```typescript
+{
+  type: "connected" | "disconnected" | "refreshed";
+  isConnected: boolean;
+  userAddress: string | null;
+  clubId: string | null;
+}
+```
+
+### NEW in v3.1.0: Integrated Logging
+
+Send SDK logs to your logging system (Sentry, Datadog, etc.):
+
+```tsx
+import { logger } from "./logger"; // Your app's logger
+
+<HashConnectProvider
+  onLog={(event) => {
+    logger.debug({
+      source: "hashconnect",
+      message: event.message,
+      timestamp: event.timestamp,
+    });
+  }}
+>
+  <App />
+</HashConnectProvider>;
+```
+
+**Important:** When `onLog` is provided, console logging is automatically suppressed (even if `debug={true}`).
+
 ### 1. Protected Routes
 
 ```tsx
-import { useHashConnect } from "@hashpass/connect/react";
+import { useHashConnect } from "@hashpass/connect";
 import { Navigate } from "react-router-dom";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isConnected, isLoading } = useHashConnect();
+  const { isInitialized, isConnected, isLoading } = useHashConnect();
 
-  if (isLoading) {
+  // Wait for SDK to check localStorage
+  if (!isInitialized || isLoading) {
     return <LoadingSpinner />;
   }
 
@@ -430,6 +574,7 @@ function ClubGatedContent() {
 ```typescript
 {
   // State
+  isInitialized: boolean;    // NEW v3.1.0: Has SDK finished localStorage check?
   isConnected: boolean;       // Is wallet connected?
   isLoading: boolean;         // Is connection in progress?
   userAddress: string | null; // Wallet address (e.g., "0.0.12345")
@@ -455,6 +600,8 @@ function ClubGatedContent() {
 - `children: React.ReactNode` - Your app
 - `debug?: boolean` - Enable debug logging
 - `disclaimer?: string` - Custom disclaimer text
+- `onAuthStateChange?: (event) => void` - NEW v3.1.0: Auth event callback
+- `onLog?: (event) => void` - NEW v3.1.0: Logging callback
 
 **Example:**
 
@@ -462,6 +609,12 @@ function ClubGatedContent() {
 <HashConnectProvider
   debug={true}
   disclaimer="By connecting, you agree to our Terms"
+  onAuthStateChange={({ type, userAddress }) => {
+    console.log(`Auth ${type}:`, userAddress);
+  }}
+  onLog={({ message, timestamp }) => {
+    logger.debug("[HashConnect]", message);
+  }}
 >
   <App />
 </HashConnectProvider>
@@ -1494,6 +1647,8 @@ Before deploying to production, verify:
 
 | Version | Date       | Key Changes                                |
 | ------- | ---------- | ------------------------------------------ |
+| 3.1.0   | 2025-12-08 | isInitialized, non-React access, callbacks |
+| 3.0.3   | 2025-12-08 | React-only architecture                    |
 | 2.0.1   | 2025-12-08 | Bug fixes for connection monitoring        |
 | 2.0.0   | 2025-12-08 | Major stability release, proactive refresh |
 | 1.0.22  | 2025-11-08 | React hooks, debug logging                 |
@@ -1533,5 +1688,5 @@ A: The SDK requires `window` and `localStorage`, so it only works client-side. I
 
 For updates to this guide, check the [GitHub repository](https://github.com/your-org/hash-connect-sdk).
 
-**Current Version:** 2.0.1  
+**Current Version:** 3.1.0  
 **Last Updated:** December 8, 2025
