@@ -1,284 +1,185 @@
-# HashConnect SDK v3 - Must Haves for Robustness & Stability
+# HashConnect SDK v3 - Improvement Roadmap
 
-## Document Purpose
+## Overview
 
-This document outlines improvements needed for `@hashpass/connect` v3 to enhance robustness and stability. The SDK is now React-only with a solid foundation. These are incremental improvements to harden the implementation.
-
----
-
-## 1. 🎯 Clear Purpose Statement (Missing)
-
-**Priority: CRITICAL**
-
-The SDK lacks a clear, concise purpose statement in its documentation and exports.
-
-### Current State
-
-The README starts with "React-only authentication and wallet integration" but doesn't clearly answer:
-
-- What problem does this solve?
-- Who is the target user?
-- What is the primary use case?
-
-### Must Have
-
-Add a purpose statement at the top of the README and export it programmatically:
-
-```typescript
-// Should be exported from the SDK
-export const SDK_PURPOSE = {
-  name: "@hashpass/connect",
-  description:
-    "Authenticate poker room club administrators via QR code using HASH Pass mobile wallet",
-  primaryUseCase:
-    "Club authentication for TV displays and director dashboards in live poker rooms",
-  targetUsers: [
-    "Poker room operators",
-    "Club managers",
-    "Tournament directors",
-  ],
-};
-```
-
-### Acceptance Criteria
-
-- [ ] README has a clear "What is this?" section in the first paragraph
-- [ ] Purpose is codified and exportable for runtime access
-- [ ] Example use case (poker room) is mentioned
+This document outlines **critical** improvements for `@hashpass/connect` v3. Each item addresses a specific pain point observed in production usage (PokerID) with a clear justification.
 
 ---
 
-## 2. 🔍 Auth State Observability
+## 1. Initialization State
 
-**Priority: HIGH**
+**Priority: CRITICAL**  
+**Effort: Low**
 
-### Current State
+### The Problem
 
-The app uses workarounds to determine auth state:
+When the SDK mounts, it restores the session from localStorage in a `useEffect`. During this restoration (typically <100ms), `isConnected` is `false` even if the user has a valid session. Consumers cannot distinguish between:
 
-- Reading `localStorage` directly for non-React contexts (`src/lib/hashconnect.ts`)
-- Custom flags like `poker-id-was-authenticated` in localStorage
-- Multiple `setTimeout` delays to "wait for SDK to initialize"
+- "SDK is still checking localStorage" (should show spinner)
+- "SDK checked and user is not authenticated" (should show login)
 
-### Must Have
-
-#### 2.1 Export `isSDKReady()` utility
-
-```typescript
-// Should be exported from SDK
-export function isSDKReady(): boolean;
-export function getAuthState(): {
-  isAuthenticated: boolean;
-  hasTokens: boolean;
-  hasClubId: boolean;
-  isInitializing: boolean;
-};
-```
-
-#### 2.2 Add `onAuthStateChange` callback option to Provider
-
-```tsx
-<HashConnectProvider
-  onAuthStateChange={(state) => {
-    console.log('Auth changed:', state.isConnected, state.clubId);
-  }}
->
-```
-
-#### 2.3 Export a non-React getter for token access
-
-```typescript
-// For use in API interceptors, fetch wrappers, etc.
-export function getAccessToken(): Promise<string | null>;
-export function getClubId(): string | null;
-```
-
-### Acceptance Criteria
-
-- [ ] Non-React code can check auth state without reading localStorage directly
-- [ ] Provider supports `onAuthStateChange` callback
-- [ ] Token getter is officially exported (not localStorage reading)
-
----
-
-## 3. ⏱️ Initialization State Machine
-
-**Priority: HIGH**
-
-### Current State
-
-Consumers don't know if the SDK is:
-
-- Still initializing (checking localStorage, restoring session)
-- Ready but not connected
-- Connected
-- Failed to initialize
-
-This leads to timing-based workarounds:
+This forces workarounds like arbitrary `setTimeout` delays:
 
 ```tsx
 // Current workaround in PokerID
 const [hasCheckedInitialAuth, setHasCheckedInitialAuth] = useState(false);
 useEffect(() => {
-  const timer = setTimeout(() => {
-    setHasCheckedInitialAuth(true);
-  }, 2000); // Magic number
+  const timer = setTimeout(() => setHasCheckedInitialAuth(true), 2000);
   return () => clearTimeout(timer);
 }, []);
 ```
 
-### Must Have
+### The Solution
 
-#### 3.1 Add explicit initialization state
+Add `isInitialized` to the hook return value:
 
 ```typescript
-type InitializationState =
-  | "idle" // SDK not started
-  | "initializing" // Checking localStorage, restoring session
-  | "ready" // Initialization complete, may or may not be connected
-  | "error"; // Failed to initialize
-
-// In useHashConnect return
 const {
-  initState, // InitializationState
-  isReady, // Boolean: initState === 'ready'
-  isConnected, // Boolean: connected AND authenticated
-  isLoading, // Boolean: connection in progress
+  isInitialized, // NEW: true once localStorage check is complete
+  isConnected, // existing: true if authenticated
+  isLoading, // existing: true if actively connecting via QR
 } = useHashConnect();
 ```
 
-#### 3.2 Promise-based readiness
+**Implementation**: Set `isInitialized: false` in initial state, set to `true` at the end of the localStorage restoration `useEffect` (after checking for stored tokens).
 
-```typescript
-// Wait for SDK to be ready before making auth decisions
-await useHashConnect().waitForReady();
+### Consumer Usage
+
+```tsx
+function App() {
+  const { isInitialized, isConnected } = useHashConnect();
+
+  if (!isInitialized) {
+    return <Spinner />; // SDK still checking for existing session
+  }
+
+  if (!isConnected) {
+    return <LoginScreen />; // No session found, show login
+  }
+
+  return <Dashboard />; // Authenticated
+}
 ```
 
 ### Acceptance Criteria
 
-- [ ] `initState` clearly distinguishes "not yet checked" from "checked and disconnected"
-- [ ] No need for `setTimeout` workarounds in consuming apps
-- [ ] `isReady` boolean for simple conditional rendering
+- [ ] `isInitialized` is `false` on mount
+- [ ] `isInitialized` becomes `true` after localStorage check completes
+- [ ] No breaking changes to existing API
 
 ---
 
-## 4. 🔄 Token Refresh Visibility
+## 2. Non-React Token Access
 
-**Priority: MEDIUM**
+**Priority: HIGH**  
+**Effort: Low**
 
-### Current State
+### The Problem
 
-Token refresh happens in the background. Consumers have no visibility into:
-
-- When tokens will expire
-- Whether a refresh is in progress
-- Refresh failures
-
-### Must Have
-
-#### 4.1 Expose token metadata
+The `getToken()` function is only available inside React components via the hook. Non-React code (API interceptors, fetch wrappers, utility functions) cannot access tokens through the SDK. This forces consumers to read localStorage directly:
 
 ```typescript
-const {
-  tokenExpiresAt, // Date | null
-  tokenExpiresIn, // number (seconds) | null
-  isRefreshing, // boolean
-  lastRefreshError, // Error | null
-} = useHashConnect();
+// Current workaround in PokerID (src/lib/hashconnect.ts)
+export function getStoredToken(): string | null {
+  return localStorage.getItem("hc:accessToken");
+}
 ```
 
-#### 4.2 Manual refresh trigger
+This is problematic because:
+
+- Bypasses SDK's token validation logic
+- May return expired tokens
+- Creates coupling to internal storage keys
+
+### The Solution
+
+Export a standalone function that works outside React:
 
 ```typescript
-const { refreshToken } = useHashConnect();
-// Force token refresh (useful before critical operations)
-await refreshToken();
-```
-
-### Acceptance Criteria
-
-- [ ] Consumers can know when tokens expire
-- [ ] Refresh state is observable
-- [ ] Manual refresh is possible for critical operations
-
----
-
-## 5. 🚨 Error Categorization
-
-**Priority: MEDIUM**
-
-### Current State
-
-The SDK exposes `error` as a string. This makes programmatic error handling difficult.
-
-### Must Have
-
-#### 5.1 Typed error objects
-
-```typescript
-type HashConnectError = {
-  code:
-    | "NETWORK_ERROR"
-    | "AUTH_EXPIRED"
-    | "INVALID_QR"
-    | "PUSHER_DISCONNECTED"
-    | "TOKEN_REFRESH_FAILED";
-  message: string;
-  recoverable: boolean;
-  retryable: boolean;
+// Exported from @hashpass/connect
+export async function getAccessToken(): Promise<string | null>;
+export function getAuthState(): {
+  isAuthenticated: boolean;
+  userAddress: string | null;
+  clubId: string | null;
 };
-
-const { error } = useHashConnect(); // HashConnectError | null
 ```
 
-#### 5.2 Error recovery suggestions
+**Implementation**: These functions read from localStorage (same keys the Provider uses) and apply the same `validateTokenFormat()` logic that exists in the Provider. For `getAccessToken()`, attempt token refresh if expired (requires storing refresh endpoint in config or localStorage).
+
+### Consumer Usage
 
 ```typescript
-if (error?.code === "TOKEN_REFRESH_FAILED" && error.retryable) {
-  // Show "Retry" button
-}
-if (!error?.recoverable) {
-  // Show "Please reconnect" UI
-}
+// In an API interceptor (non-React)
+import { getAccessToken } from "@hashpass/connect";
+
+api.interceptors.request.use(async (config) => {
+  const token = await getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 ```
 
 ### Acceptance Criteria
 
-- [ ] Errors have structured codes
-- [ ] `recoverable` and `retryable` flags guide UI decisions
-- [ ] Type safety for error handling
+- [ ] `getAccessToken()` returns valid token or null (never expired tokens)
+- [ ] `getAuthState()` returns current auth status
+- [ ] Functions work outside React context
+- [ ] Same validation logic as the Provider
 
 ---
 
-## 6. 📊 Connection Health Metrics
+## 3. Auth State Change Callback
 
-**Priority: MEDIUM**
+**Priority: MEDIUM**  
+**Effort: Low**
 
-### Current State
+### The Problem
 
-Pusher connection state is exposed but there's no aggregate "health" indicator.
+Apps need to react to auth state changes for:
 
-### Must Have
+- Redirecting to login on session expiration
+- Updating UI in components not using the hook
+- Logging/analytics
 
-#### 6.1 Connection health summary
+Currently, this requires watching state in a `useEffect`:
 
-```typescript
-const { connectionHealth } = useHashConnect();
-// {
-//   status: 'healthy' | 'degraded' | 'disconnected',
-//   pusherState: 'connected' | 'connecting' | 'disconnected' | 'failed',
-//   lastConnectedAt: Date | null,
-//   reconnectAttempts: number,
-// }
+```tsx
+// Current workaround
+useEffect(() => {
+  if (wasConnected && !isConnected) {
+    router.push("/login");
+  }
+}, [isConnected]);
 ```
 
-#### 6.2 Health change events
+### The Solution
+
+Add an optional callback prop to the Provider:
 
 ```tsx
 <HashConnectProvider
-  onHealthChange={(health) => {
-    if (health.status === 'degraded') {
-      showToast('Connection issues detected');
+  onAuthStateChange={(event) => {
+    // event: { type: 'connected' | 'disconnected' | 'refreshed', ... }
+    if (event.type === 'disconnected') {
+      router.push('/login');
+    }
+  }}
+>
+```
+
+**Implementation**: Call this callback in `handleAuthorization` (connected), `handleDisconnect` (disconnected), and `onTokensRefreshed` (refreshed).
+
+### Consumer Usage
+
+```tsx
+<HashConnectProvider
+  onAuthStateChange={({ type, isConnected, clubId }) => {
+    analytics.track('auth_state_change', { type, clubId });
+    if (type === 'disconnected') {
+      router.push('/login');
     }
   }}
 >
@@ -286,196 +187,118 @@ const { connectionHealth } = useHashConnect();
 
 ### Acceptance Criteria
 
-- [ ] Single "health" status for UI indicators
-- [ ] Reconnection visibility
-- [ ] Callback for health changes
+- [ ] Callback fires on connect, disconnect, and token refresh
+- [ ] Event includes relevant state (`type`, `isConnected`, `clubId`, etc.)
+- [ ] Optional prop (no breaking changes)
 
 ---
 
-## 7. 🧪 Testing Utilities
+## 4. Consolidated Logging via `onLog`
 
-**Priority: LOW**
+**Priority: LOW**  
+**Effort: Low**
 
-### Current State
+### The Problem
 
-No testing utilities are provided. Consumers must mock the entire context.
+The SDK has a `debug={true}` prop that outputs to `console.log`. This is useful for development but:
 
-### Must Have
+- Logs go to console only (can't send to Sentry, Datadog, etc.)
+- Can't be formatted to match the app's logging conventions
+- If consumer wants SDK logs in their logger, they get duplicate output (console + their logger)
 
-#### 7.1 Mock provider for testing
+### The Solution
 
-```typescript
-import { MockHashConnectProvider } from "@hashpass/connect/testing";
-
-test("renders when connected", () => {
-  render(
-    <MockHashConnectProvider
-      initialState={{ isConnected: true, clubId: "test-club" }}
-    >
-      <MyComponent />
-    </MockHashConnectProvider>
-  );
-});
-```
-
-#### 7.2 State manipulation in tests
-
-```typescript
-import { mockHashConnect } from "@hashpass/connect/testing";
-
-test("handles disconnect", async () => {
-  const { simulateDisconnect } = mockHashConnect();
-  // ...
-  await simulateDisconnect();
-  // Assert component handles disconnect
-});
-```
-
-### Acceptance Criteria
-
-- [ ] `MockHashConnectProvider` exported from `/testing`
-- [ ] State simulation utilities available
-- [ ] No need to mock internal implementation
-
----
-
-## 8. 📝 Debug Mode Improvements
-
-**Priority: LOW**
-
-### Current State
-
-`debug={true}` enables console logging but output is unstructured.
-
-### Must Have
-
-#### 8.1 Structured debug output
-
-```typescript
-// Instead of console.log('Connected!')
-// Output:
-// [HashConnect] AUTH_STATE_CHANGE { isConnected: true, clubId: 'abc', timestamp: '...' }
-```
-
-#### 8.2 Debug event export
+Add an `onLog` callback prop. When provided, **SDK console logging is automatically disabled** since the consumer is handling it:
 
 ```tsx
 <HashConnectProvider
-  debug={true}
-  onDebugEvent={(event) => {
-    // Send to logging service
-    logger.debug('hashconnect', event.type, event.payload);
+  onLog={(event) => {
+    logger.debug('[HashConnect]', event.message);
+  }}
+>
+```
+
+**Implementation**: Modify the existing `log` function:
+
+```typescript
+const log = useCallback(
+  (...args: unknown[]) => {
+    // If onLog is provided, consumer handles logging (no console output)
+    if (onLog) {
+      onLog({
+        message: args.map(String).join(" "),
+        timestamp: new Date(),
+      });
+      return;
+    }
+    // Otherwise, use debug prop for console logging
+    if (debug) {
+      console.log("[HashConnect]", ...args);
+    }
+  },
+  [debug, onLog]
+);
+```
+
+**Behavior:**
+
+- `debug={true}` alone → logs to console
+- `onLog={...}` alone → logs to callback only (console suppressed)
+- `debug={true}` + `onLog={...}` → logs to callback only (console suppressed)
+- Neither → no logging
+
+### Consumer Usage
+
+```tsx
+// Integrate with your app's logger
+<HashConnectProvider
+  onLog={({ message, timestamp }) => {
+    logger.debug({
+      source: 'hashconnect',
+      message,
+      timestamp,
+    });
   }}
 >
 ```
 
 ### Acceptance Criteria
 
-- [ ] Debug logs are structured (type, payload, timestamp)
-- [ ] Debug events can be captured programmatically
-- [ ] Sensitive data (tokens) never logged
+- [ ] `onLog` callback receives all SDK log events
+- [ ] Console logging is suppressed when `onLog` is provided
+- [ ] `debug` prop still works when `onLog` is not provided
+- [ ] Optional prop (no breaking changes)
 
 ---
 
-## 9. 🔐 Security Hardening
+## Summary
 
-**Priority: HIGH**
+| #   | Improvement            | Why It Matters                                           | Effort |
+| --- | ---------------------- | -------------------------------------------------------- | ------ |
+| 1   | `isInitialized` state  | Eliminates setTimeout workarounds, proper loading states | Low    |
+| 2   | Non-React token access | API interceptors can use SDK instead of raw localStorage | Low    |
+| 3   | Auth state callback    | Easier routing and analytics integration                 | Low    |
+| 4   | `onLog` callback       | Consolidate SDK logs with app's logging system           | Low    |
 
-### Current State
+### What We're NOT Adding
 
-Tokens are stored in localStorage with `hc:` prefix. This is standard but has known risks.
+These were considered but deemed unnecessary:
 
-### Must Have
-
-#### 9.1 Token storage options
-
-```tsx
-<HashConnectProvider
-  tokenStorage="localStorage"  // default
-  // OR
-  tokenStorage="sessionStorage"  // cleared on tab close
-  // OR
-  tokenStorage="memory"  // cleared on refresh, most secure
->
-```
-
-#### 9.2 Secure token access
-
-```typescript
-// getToken() should always return a fresh token or null
-// Never return expired tokens
-const token = await getToken(); // null if expired AND refresh failed
-```
-
-#### 9.3 Session timeout configuration
-
-```tsx
-<HashConnectProvider
-  sessionTimeout={30 * 60 * 1000}  // 30 minutes of inactivity
-  onSessionTimeout={() => {
-    showToast('Session expired. Please reconnect.');
-  }}
->
-```
-
-### Acceptance Criteria
-
-- [ ] Storage backend is configurable
-- [ ] Expired tokens are never returned
-- [ ] Inactivity timeout is configurable
+- **Testing utilities** - Consumers can mock the context; not worth the maintenance burden
+- **Error categorization** - String errors are sufficient; structured errors add complexity without clear benefit
+- **Connection health metrics** - Pusher state is already exposed; aggregated health is app-specific
+- **Token storage options** - localStorage is standard; sessionStorage/memory options add complexity with minimal security benefit (XSS can read any storage)
+- **Session timeout** - Should be handled at the application level, not in auth SDK
 
 ---
 
-## Implementation Priority
+## Version Plan
 
-| #   | Feature                      | Priority | Effort | Impact |
-| --- | ---------------------------- | -------- | ------ | ------ |
-| 1   | Purpose Statement            | CRITICAL | Low    | High   |
-| 2   | Auth State Observability     | HIGH     | Medium | High   |
-| 3   | Initialization State Machine | HIGH     | Medium | High   |
-| 9   | Security Hardening           | HIGH     | Medium | High   |
-| 4   | Token Refresh Visibility     | MEDIUM   | Low    | Medium |
-| 5   | Error Categorization         | MEDIUM   | Medium | Medium |
-| 6   | Connection Health Metrics    | MEDIUM   | Low    | Medium |
-| 7   | Testing Utilities            | LOW      | Medium | Medium |
-| 8   | Debug Mode Improvements      | LOW      | Low    | Low    |
-
----
-
-## Current Workarounds in PokerID
-
-These workarounds should be removable once the SDK implements the above:
-
-### 1. `src/lib/hashconnect.ts`
-
-Direct localStorage reading for non-React contexts. **Remove when #2 is implemented.**
-
-### 2. `poker-id-was-authenticated` flag
-
-Custom flag to track if user was ever authenticated. **Remove when #3 is implemented.**
-
-### 3. `setTimeout` delays in layouts
-
-2000ms delays to "wait for SDK to initialize". **Remove when #3 is implemented.**
-
-### 4. `hasCheckedSession` state
-
-Manual tracking of initialization. **Remove when #3 is implemented.**
-
----
-
-## Version Targeting
-
-These improvements should target:
-
-- **v3.1.0**: Items 1-3 (Critical/High priority, foundation)
-- **v3.2.0**: Items 4-6 (Medium priority, observability)
-- **v3.3.0**: Items 7-9 (Testing, debug, security)
+All four improvements target **v3.1.0** as they are low-effort and address real pain points without breaking changes.
 
 ---
 
 ## References
 
 - Current SDK Version: `@hashpass/connect@3.0.3`
-- SDK Repository: https://github.com/bitlabs/hash-connect-sdk
-- PokerID Integration: See `src/App.tsx`, `src/lib/hashconnect.ts`
+- Consumer app experiencing these issues: PokerID
