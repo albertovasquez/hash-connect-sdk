@@ -154,7 +154,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
 
     // If onLog callback is provided, use it (suppresses console output)
     if (onLog) {
-      onLog({ message: `[HashConnect] ${message}`, timestamp: new Date() });
+      onLog({ message: `[HashConnectProvider] ${message}`, timestamp: new Date() });
       return;
     }
 
