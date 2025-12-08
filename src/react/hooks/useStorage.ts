@@ -165,13 +165,15 @@ export function useStorage(options: UseStorageOptions = {}): UseStorageReturn {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [prefix, syncAcrossTabs]);
 
-  return {
+  // Memoize the return object to prevent unnecessary re-renders
+  // of components that depend on the storage object reference
+  return useMemo(() => ({
     getItem,
     setItem,
     removeItem,
     clear,
     isAvailable,
-  };
+  }), [getItem, setItem, removeItem, clear, isAvailable]);
 }
 
 /**

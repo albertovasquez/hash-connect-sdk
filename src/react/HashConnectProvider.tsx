@@ -135,6 +135,10 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
   // Ref for handleDisconnect to allow callbacks to access current version
   // This avoids circular dependencies with useTokenRefresh callbacks
   const handleDisconnectRef = useRef<() => void>(() => {});
+  
+  // Ref to store the subscription_succeeded handler for cleanup
+  // This prevents duplicate handlers when reconnecting with the same address
+  const subscriptionSucceededHandlerRef = useRef<((data: any) => void) | null>(null);
 
   // =========================================================================
   // Hooks
@@ -191,6 +195,18 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
 
     if (storedToken && storedAddress) {
       log('✅ Found stored session, restoring...');
+      
+      // Validate token before considering connected (same logic as cross-tab sync)
+      // This prevents reporting isConnected: true with corrupted/expired tokens
+      const isValidToken = validateTokenFormat(storedToken);
+      
+      if (!isValidToken) {
+        log('⚠️ Stored token is invalid or expired, clearing session');
+        // Clear invalid session from storage
+        storage.clear();
+        return;
+      }
+      
       const storedSessionId = storage.getItem(STORAGE_KEYS.SESSION_ID);
       
       // Update ref to keep it in sync with restored state
@@ -224,20 +240,31 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
 
       log('📦 Storage changed in another tab:', event.key);
 
-      // Another tab disconnected
+      // Another tab disconnected (accessToken removed)
       if (event.key === 'hc:accessToken' && !event.newValue && event.oldValue) {
         log('🔌 Disconnect detected from another tab');
         setState(initialAuthState);
         return;
       }
 
-      // Another tab connected or refreshed tokens
-      // Sync ALL relevant fields, not just accessToken, to prevent authentication mismatches
-      // when another tab logs in as a different user
-      if (event.key === 'hc:accessToken' && event.newValue) {
-        log('🔄 Token synced from another tab, loading full session state');
+      // Another tab updated any HashConnect storage key
+      // This includes: accessToken, refreshToken, address, clubId, clubName, signature, sessionId
+      // We need to sync ALL fields to prevent stale data
+      const relevantKeys = [
+        'hc:accessToken',
+        'hc:refreshToken',
+        'hc:address',
+        'hc:clubId',
+        'hc:clubName',
+        'hc:signature',
+        'hc:sessionId',
+      ];
+      
+      if (relevantKeys.includes(event.key)) {
+        log('🔄 Session data changed in another tab, syncing all fields...');
         
-        // Read all session fields from storage to stay in sync
+        // Read ALL session fields from storage to stay in complete sync
+        const storedToken = storage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
         const storedAddress = storage.getItem(STORAGE_KEYS.ADDRESS);
         const storedRefreshToken = storage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
         const storedClubId = storage.getItem(STORAGE_KEYS.CLUB_ID);
@@ -250,17 +277,16 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
         
         // Validate token before considering connected
         // Check both that address exists AND token is valid (parseable and not expired)
-        const newToken = event.newValue;
-        const isValidToken = validateTokenFormat(newToken);
+        const isValidToken = storedToken ? validateTokenFormat(storedToken) : false;
         const shouldBeConnected = !!storedAddress && isValidToken;
         
-        if (!isValidToken && newToken) {
+        if (storedToken && !isValidToken) {
           log('⚠️ Token from another tab is invalid or expired, not setting connected');
         }
         
         setState(prev => ({
           ...prev,
-          accessToken: newToken,
+          accessToken: storedToken,
           refreshToken: storedRefreshToken,
           userAddress: storedAddress,
           clubId: storedClubId,
@@ -274,7 +300,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [log]);
+  }, [log, storage]);
 
   // =========================================================================
   // Pusher Event Handlers
@@ -297,10 +323,18 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       return;
     }
 
+    // Clean up any existing subscription_succeeded handler before binding a new one
+    // This prevents duplicate handlers if the user reconnects with the same address
+    if (subscriptionSucceededHandlerRef.current && userChannelRef.current) {
+      log('🧹 Cleaning up old subscription_succeeded handler');
+      userChannelRef.current.unbind('pusher:subscription_succeeded', subscriptionSucceededHandlerRef.current);
+      subscriptionSucceededHandlerRef.current = null;
+    }
+
     userChannelRef.current = userChannel;
 
-    // Wait for subscription to succeed, then request authorization
-    userChannel.bind('pusher:subscription_succeeded', () => {
+    // Create and store the handler so we can unbind it later
+    const subscriptionSucceededHandler = () => {
       log('✅ Subscribed to user channel, requesting authorization...');
       
       // Use ref to get current sessionId (avoids stale closure issue)
@@ -317,7 +351,13 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
         domain: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
         name: typeof document !== 'undefined' ? document.title || 'Unknown site' : 'Unknown site',
       });
-    });
+    };
+
+    // Store reference for cleanup
+    subscriptionSucceededHandlerRef.current = subscriptionSucceededHandler;
+
+    // Bind the handler
+    userChannel.bind('pusher:subscription_succeeded', subscriptionSucceededHandler);
 
     // Update state with address and signature
     setState(prev => ({
@@ -373,6 +413,13 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
    */
   const handleDisconnect = useCallback(() => {
     log('🔌 Disconnecting...');
+
+    // Clean up subscription_succeeded handler if it exists
+    if (subscriptionSucceededHandlerRef.current && userChannelRef.current) {
+      log('🧹 Unbinding subscription_succeeded handler');
+      userChannelRef.current.unbind('pusher:subscription_succeeded', subscriptionSucceededHandlerRef.current);
+      subscriptionSucceededHandlerRef.current = null;
+    }
 
     // Unsubscribe from channels using ref for sessionId (ensures current value)
     const currentSessionId = sessionIdRef.current;
@@ -499,19 +546,22 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
    * Get valid access token (refreshes if expired)
    */
   const getToken = useCallback(async (): Promise<string | null> => {
-    if (!state.accessToken) {
+    const currentToken = state.accessToken;
+    
+    if (!currentToken) {
       log('❌ No access token available');
       return null;
     }
 
-    // Check if token is expired
-    if (isTokenExpired()) {
+    // Check if THIS specific token is expired (not the ref)
+    // This ensures we validate the same token we're checking and potentially returning
+    if (isTokenExpired(currentToken)) {
       log('⚠️ Token expired, refreshing...');
       const newTokens = await refreshTokens();
       return newTokens?.accessToken || null;
     }
 
-    return state.accessToken;
+    return currentToken;
   }, [state.accessToken, isTokenExpired, refreshTokens, log]);
 
   /**
@@ -550,11 +600,24 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     // Determine if we should set Content-Type: application/json
     // Don't set it for FormData, Blob, ArrayBuffer, etc. as the browser handles these
     const userHeaders = options.headers || {};
-    const hasUserContentType = userHeaders instanceof Headers
-      ? userHeaders.has('Content-Type')
-      : Object.keys(userHeaders).some(
-          key => key.toLowerCase() === 'content-type'
+    
+    // Helper to check if headers contain Content-Type
+    // Headers can be: Headers object, plain object, or array of tuples
+    const hasUserContentType = (() => {
+      if (userHeaders instanceof Headers) {
+        return userHeaders.has('Content-Type');
+      }
+      if (Array.isArray(userHeaders)) {
+        // Array of tuples: [['Content-Type', 'application/json'], ...]
+        return userHeaders.some(([key]) => 
+          typeof key === 'string' && key.toLowerCase() === 'content-type'
         );
+      }
+      // Plain object
+      return Object.keys(userHeaders).some(
+        key => key.toLowerCase() === 'content-type'
+      );
+    })();
     
     // Check if body is a type that should NOT have application/json Content-Type
     const body = options.body;
@@ -565,12 +628,22 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream);
     
     // Build headers: only add Content-Type: application/json if appropriate
-    // Convert Headers to plain object if necessary
+    // Convert Headers/arrays to plain object for easier manipulation
     let baseHeaders: Record<string, string> = {};
     if (userHeaders instanceof Headers) {
       userHeaders.forEach((value, key) => {
         baseHeaders[key] = value;
       });
+    } else if (Array.isArray(userHeaders)) {
+      // Array of tuples: [['X-Custom', 'value'], ...]
+      for (const entry of userHeaders) {
+        if (Array.isArray(entry) && entry.length >= 2) {
+          const [key, value] = entry;
+          if (typeof key === 'string' && typeof value === 'string') {
+            baseHeaders[key] = value;
+          }
+        }
+      }
     } else {
       baseHeaders = userHeaders as Record<string, string>;
     }
@@ -607,6 +680,13 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     // This handles the case where user scanned QR (handleHashPassConnect ran)
     // but closed the modal before authorization completed
     if (!state.isConnected) {
+      // Clean up subscription_succeeded handler if it exists
+      if (subscriptionSucceededHandlerRef.current && userChannelRef.current) {
+        log('🧹 Unbinding subscription_succeeded handler on modal close');
+        userChannelRef.current.unbind('pusher:subscription_succeeded', subscriptionSucceededHandlerRef.current);
+        subscriptionSucceededHandlerRef.current = null;
+      }
+
       // Cleanup session channel (session-specific, always clear)
       if (state.sessionId) {
         unsubscribe(`private-hc-${state.sessionId}`);

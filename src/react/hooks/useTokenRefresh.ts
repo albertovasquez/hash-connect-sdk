@@ -44,8 +44,8 @@ export interface UseTokenRefreshReturn {
   failureCount: number;
   /** Manually trigger a token refresh */
   refresh: () => Promise<{ accessToken: string; refreshToken: string } | null>;
-  /** Check if token is expired */
-  isTokenExpired: () => boolean;
+  /** Check if token is expired (optionally pass a specific token to check) */
+  isTokenExpired: (token?: string | null) => boolean;
   /** Get time until token expires (in minutes) */
   getTimeUntilExpiry: () => number | null;
 }
@@ -327,10 +327,12 @@ export function useTokenRefresh(options: UseTokenRefreshOptions): UseTokenRefres
 
   /**
    * Check if current token is expired
+   * @param token - Optional token to check, defaults to current token from ref
    */
-  const isTokenExpired = useCallback((): boolean => {
-    if (!accessTokenRef.current) return true;
-    return isExpired(accessTokenRef.current);
+  const isTokenExpired = useCallback((token?: string | null): boolean => {
+    const tokenToCheck = token ?? accessTokenRef.current;
+    if (!tokenToCheck) return true;
+    return isExpired(tokenToCheck);
   }, []);
 
   /**
