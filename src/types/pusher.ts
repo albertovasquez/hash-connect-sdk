@@ -11,7 +11,7 @@ export interface PusherChannel {
 export interface PusherConnection {
   state: string;
   bind: (eventName: string, callback: (...args: any[]) => void) => void;
-  unbind: (eventName?: string) => void;
+  unbind: (eventName?: string, callback?: (...args: any[]) => void) => void;
 }
 
 export interface PusherClient {
