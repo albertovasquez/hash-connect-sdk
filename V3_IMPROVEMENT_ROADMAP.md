@@ -67,6 +67,50 @@ function App() {
 - [ ] `isInitialized` becomes `true` after localStorage check completes
 - [ ] No breaking changes to existing API
 
+### Implementation Prompt
+
+```
+TASK: Add `isInitialized` state to HashConnect SDK
+
+CONTEXT:
+You are modifying the @hashpass/connect SDK. The SDK uses React Context to manage authentication state. When the provider mounts, it restores sessions from localStorage in a useEffect, but consumers cannot distinguish "still checking" from "checked and not authenticated".
+
+FILES TO MODIFY:
+1. src/react/HashConnectContext.ts - Add isInitialized to AuthState interface and initialAuthState
+2. src/react/HashConnectProvider.tsx - Set isInitialized to true after localStorage check
+3. src/react/useHashConnect.ts - Expose isInitialized in UseHashConnectReturn and return object
+
+CURRENT STATE:
+- initialAuthState in HashConnectContext.ts has: isConnected, isLoading, isModalOpen, userAddress, accessToken, refreshToken, signature, clubId, clubName, sessionId, error
+- The localStorage restoration happens in useEffect at ~line 192 in HashConnectProvider.tsx
+- The useEffect either restores a session (sets isConnected: true) or logs "No stored session found"
+
+REQUIREMENTS:
+1. Add `isInitialized: boolean` to AuthState interface (default: false)
+2. Set `isInitialized: true` at the END of the localStorage check useEffect, AFTER all branching logic (both success and "no session" paths)
+3. Include isInitialized in the setState calls within that useEffect
+4. Export isInitialized from useHashConnect hook
+
+CONSTRAINTS:
+- Do NOT add any new useEffect hooks
+- Do NOT add any setTimeout or async delays
+- Do NOT modify any other state fields or logic
+- Do NOT add loading spinners or UI changes
+- Keep the change minimal: ~10 lines total across 3 files
+
+EXAMPLE CHANGES:
+In HashConnectContext.ts initialAuthState:
+  isInitialized: false,
+
+In HashConnectProvider.tsx useEffect (line ~192):
+  After "if (storedToken && storedAddress)" block AND after "else" block, both paths should set isInitialized: true
+
+In useHashConnect.ts:
+  Add isInitialized to UseHashConnectReturn interface and return object
+
+TEST: After implementation, isInitialized should be false on first render, then true after the useEffect runs (regardless of whether a session was found).
+```
+
 ---
 
 ## 2. Non-React Token Access
@@ -129,6 +173,66 @@ api.interceptors.request.use(async (config) => {
 - [ ] Functions work outside React context
 - [ ] Same validation logic as the Provider
 
+### Implementation Prompt
+
+```
+TASK: Add standalone token access functions for non-React code
+
+CONTEXT:
+You are modifying the @hashpass/connect SDK. Currently, getToken() only works inside React components via the hook. API interceptors and utility functions must read localStorage directly, bypassing SDK validation. We need exported functions that work outside React.
+
+FILES TO MODIFY:
+1. src/react/index.ts - Export new functions
+2. NEW FILE: src/standalone.ts - Create standalone functions
+
+CURRENT STATE:
+- Storage keys are defined in src/react/hooks/useStorage.ts as STORAGE_KEYS with prefix 'hc:'
+- Full keys: hc:accessToken, hc:refreshToken, hc:address, hc:clubId, hc:clubName, hc:signature
+- validateTokenFormat() exists in HashConnectProvider.tsx (lines 67-98) - validates JWT structure and expiration
+- Token refresh requires: refreshToken, address, and authEndpoint (from CONFIG in src/config.ts)
+
+REQUIREMENTS:
+1. Create src/standalone.ts with two exported functions:
+
+   getAccessToken(): Promise<string | null>
+   - Read hc:accessToken from localStorage
+   - If no token, return null
+   - If token exists, validate with same logic as validateTokenFormat()
+   - If token is expired but hc:refreshToken exists, attempt refresh via fetch to CONFIG.AUTH_ENDPOINT/auth/refresh
+   - Return valid token or null (never return expired token)
+
+   getAuthState(): { isAuthenticated: boolean; userAddress: string | null; clubId: string | null }
+   - Read from localStorage: hc:accessToken, hc:address, hc:clubId
+   - isAuthenticated = token exists AND passes validateTokenFormat()
+   - Return synchronous result (no refresh attempt)
+
+2. Export both functions from src/react/index.ts
+
+CONSTRAINTS:
+- Do NOT import React or any React hooks
+- Do NOT create classes or singletons
+- Do NOT add event emitters or subscriptions
+- Do NOT modify any existing files except index.ts exports
+- Copy validateTokenFormat logic (don't import from Provider to avoid React dependency)
+- Handle localStorage unavailable (SSR) by returning null/false
+- Refresh endpoint: POST to `${CONFIG.AUTH_ENDPOINT}/auth/refresh` with body { refreshToken, address }
+
+FUNCTION SIGNATURES:
+export async function getAccessToken(): Promise<string | null>;
+export function getAuthState(): {
+  isAuthenticated: boolean;
+  userAddress: string | null;
+  clubId: string | null;
+};
+
+FILE STRUCTURE for src/standalone.ts:
+- Import CONFIG from './config'
+- Copy validateTokenFormat function (pure JS, no React)
+- Implement getAccessToken with refresh logic
+- Implement getAuthState as synchronous read
+- ~60-80 lines total
+```
+
 ---
 
 ## 3. Auth State Change Callback
@@ -190,6 +294,65 @@ Add an optional callback prop to the Provider:
 - [ ] Callback fires on connect, disconnect, and token refresh
 - [ ] Event includes relevant state (`type`, `isConnected`, `clubId`, etc.)
 - [ ] Optional prop (no breaking changes)
+
+### Implementation Prompt
+
+```
+TASK: Add onAuthStateChange callback prop to HashConnectProvider
+
+CONTEXT:
+You are modifying the @hashpass/connect SDK. Apps need to react to auth state changes for redirects, analytics, and updating non-hook components. Currently this requires useEffect watchers.
+
+FILES TO MODIFY:
+1. src/react/HashConnectProvider.tsx - Add prop and call it at appropriate points
+
+EVENT TYPE DEFINITION (add near top of HashConnectProvider.tsx):
+export type AuthStateChangeEvent = {
+  type: 'connected' | 'disconnected' | 'refreshed';
+  isConnected: boolean;
+  userAddress: string | null;
+  clubId: string | null;
+};
+
+REQUIREMENTS:
+1. Add to HashConnectProviderProps interface:
+   onAuthStateChange?: (event: AuthStateChangeEvent) => void;
+
+2. Call onAuthStateChange in exactly 3 places:
+
+   A. In handleAuthorization (~line 378) - AFTER setState completes:
+      type: 'connected', isConnected: true, userAddress: data.address, clubId: data.clubId || null
+
+   B. In handleDisconnect (~line 415) - BEFORE setState resets state:
+      type: 'disconnected', isConnected: false, userAddress: null, clubId: null
+
+   C. In useTokenRefresh onTokensRefreshed callback (~line 169) - AFTER setState:
+      type: 'refreshed', isConnected: true, userAddress: state.userAddress, clubId: state.clubId
+
+CONSTRAINTS:
+- Do NOT add useEffect to watch state changes
+- Do NOT fire callback on mount or initialization
+- Do NOT fire callback on cross-tab sync (storage events)
+- Do NOT modify context type or useHashConnect hook
+- Callback is optional - check if (onAuthStateChange) before calling
+- Keep changes minimal: ~15-20 lines added
+
+EXAMPLE USAGE (do not implement, just for reference):
+<HashConnectProvider
+  onAuthStateChange={({ type, clubId }) => {
+    if (type === 'disconnected') router.push('/login');
+  }}
+>
+
+IMPLEMENTATION PATTERN:
+// In handleAuthorization, after setState:
+onAuthStateChange?.({
+  type: 'connected',
+  isConnected: true,
+  userAddress: data.address,
+  clubId: data.clubId || null,
+});
+```
 
 ---
 
@@ -268,6 +431,72 @@ const log = useCallback(
 - [ ] Console logging is suppressed when `onLog` is provided
 - [ ] `debug` prop still works when `onLog` is not provided
 - [ ] Optional prop (no breaking changes)
+
+### Implementation Prompt
+
+```
+TASK: Add onLog callback prop for consolidated logging
+
+CONTEXT:
+You are modifying the @hashpass/connect SDK. The SDK has a debug={true} prop that outputs to console.log. Apps want SDK logs in their own logging system (Sentry, Datadog) without duplicate console output.
+
+FILES TO MODIFY:
+1. src/react/HashConnectProvider.tsx - Add prop and modify log function
+
+LOG EVENT TYPE (add near AuthStateChangeEvent):
+export type LogEvent = {
+  message: string;
+  timestamp: Date;
+};
+
+REQUIREMENTS:
+1. Add to HashConnectProviderProps interface:
+   onLog?: (event: LogEvent) => void;
+
+2. Modify the existing log function (~line 119) to implement this logic:
+   - If onLog is provided: call onLog with message and timestamp, DO NOT console.log
+   - If onLog is NOT provided AND debug is true: console.log as before
+   - If neither: no logging
+
+CURRENT log FUNCTION (line 119-121):
+const log = useCallback((...args: unknown[]) => {
+  if (debug) console.log('[HashConnect]', ...args);
+}, [debug]);
+
+NEW log FUNCTION:
+const log = useCallback((...args: unknown[]) => {
+  const message = args.map(arg =>
+    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+  ).join(' ');
+
+  if (onLog) {
+    onLog({ message, timestamp: new Date() });
+    return;
+  }
+
+  if (debug) {
+    console.log('[HashConnect]', ...args);
+  }
+}, [debug, onLog]);
+
+CONSTRAINTS:
+- Do NOT add log levels (info, warn, error) - keep it simple
+- Do NOT add structured data beyond message and timestamp
+- Do NOT modify any log() call sites
+- Do NOT add any other props
+- The [HashConnect] prefix is NOT included in onLog message (consumer adds their own prefix)
+- Total change: ~15 lines modified in one file
+
+BEHAVIOR MATRIX:
+| debug | onLog    | Result                        |
+|-------|----------|-------------------------------|
+| false | null     | No logging                    |
+| true  | null     | Console logging               |
+| false | provided | Callback only (no console)    |
+| true  | provided | Callback only (no console)    |
+
+Note: When onLog is provided, it ALWAYS takes precedence and suppresses console output, regardless of debug value.
+```
 
 ---
 
