@@ -518,6 +518,10 @@ localStorage.removeItem("hc:refreshToken");
 localStorage.removeItem("hc:address");
 ```
 
+### Pusher connection errors (Error 1006)
+
+If you're seeing Pusher WebSocket errors, this is typically normal and recoverable. The SDK automatically handles reconnection with exponential backoff. See [Pusher Error Handling Guide](./docs/PUSHER_ERROR_HANDLING.md) for detailed information about error codes and handling.
+
 ### Next.js hydration errors
 
 Ensure the provider is marked as a client component:
@@ -526,6 +530,13 @@ Ensure the provider is marked as a client component:
 "use client";
 import { HashConnectProvider } from "@hashpass/connect";
 ```
+
+## Documentation
+
+- [Pusher Error Handling Guide](./docs/PUSHER_ERROR_HANDLING.md) - Comprehensive guide to connection errors
+- [React Integration Guide](./docs/REACT_INTEGRATION_GUIDE.md) - Detailed integration guide
+- [Migration Guide](./MIGRATION_GUIDE.md) - Upgrading from v2 to v3
+- [Changelog](./CHANGELOG.md) - Version history and changes
 
 ## Migration from v2
 

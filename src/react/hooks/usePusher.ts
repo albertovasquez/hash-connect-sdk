@@ -58,6 +58,66 @@ const RECONNECT_CONFIG = {
   maxDelay: 30000,
 };
 
+// Pusher error codes
+// See: https://pusher.com/docs/channels/library_auth_reference/pusher-websockets-protocol/#error-codes
+const PUSHER_ERROR_CODES = {
+  // Recoverable errors (will auto-reconnect)
+  1006: 'Connection interrupted', // WebSocket closed abnormally (network issue, server restart, etc.)
+  4000: 'Application only accepts SSL', // SSL required
+  4001: 'Application does not exist',
+  4003: 'Application disabled',
+  4004: 'Application over connection quota',
+  4005: 'Path not found',
+  4006: 'Invalid version string',
+  4007: 'Unsupported protocol version',
+  4008: 'No protocol version supplied',
+  
+  // Non-recoverable errors (should not retry)
+  4009: 'Connection is unauthorized', // Auth failed
+  4100: 'Over capacity', // Too many connections
+  4200: 'Generic reconnect immediately',
+  4201: 'Pong reply not received',
+  4202: 'Closed after inactivity',
+} as const;
+
+// Determine if an error code is recoverable
+function isRecoverableError(code: number): boolean {
+  // These errors should not trigger reconnection
+  // 4000: SSL required - requires protocol change, not just reconnection
+  // 4001: App doesn't exist - invalid configuration
+  // 4003: App disabled - account/subscription issue
+  // 4009: Unauthorized - authentication failure
+  // 4100: Over capacity - plan limit reached
+  const nonRecoverableErrors = [4000, 4001, 4003, 4009, 4100];
+  return !nonRecoverableErrors.includes(code);
+}
+
+// Parse Pusher error to extract code and message
+interface PusherError {
+  type?: string;
+  data?: {
+    code?: number;
+    message?: string;
+  };
+  error?: {
+    data?: {
+      code?: number;
+      message?: string;
+    };
+  };
+}
+
+function parsePusherError(err: any): { code: number | null; message: string } {
+  // Handle Pusher error object structure
+  const pusherErr = err as PusherError;
+  
+  // Try to extract error code from various possible structures
+  const code = pusherErr.data?.code || pusherErr.error?.data?.code || null;
+  const message = pusherErr.data?.message || pusherErr.error?.data?.message || err.message || String(err);
+  
+  return { code, message };
+}
+
 /**
  * Hook for Pusher real-time communication
  * 
@@ -92,6 +152,7 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isManualDisconnectRef = useRef(false);
   const reconnectListenerRef = useRef<(() => void) | null>(null);
+  const nonRecoverableErrorRef = useRef<Error | null>(null); // Track non-recoverable errors
   
   // Use ref to access client in callbacks without causing dependency changes
   // This prevents infinite loops from client state changes triggering effect re-runs
@@ -189,6 +250,12 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
       return;
     }
 
+    // If a non-recoverable error was already set, don't overwrite it
+    if (nonRecoverableErrorRef.current) {
+      log('Skipping reconnection (non-recoverable error already set)');
+      return;
+    }
+
     if (reconnectAttemptsRef.current >= RECONNECT_CONFIG.maxAttempts) {
       log('Max reconnection attempts reached');
       setError(new Error('Max reconnection attempts reached'));
@@ -254,12 +321,26 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
 
         switch (states.current) {
           case 'connected':
-            setError(null);
-            reconnectAttemptsRef.current = 0;
+            log('Successfully connected to Pusher');
+            setError(null); // Clear any previous errors
+            nonRecoverableErrorRef.current = null; // Clear non-recoverable error flag
+            reconnectAttemptsRef.current = 0; // Reset reconnection counter
             clearReconnectTimeout();
             break;
+          case 'connecting':
+            log('Connecting to Pusher...');
+            break;
+          case 'unavailable':
+            log('Connection unavailable (will retry automatically)');
+            break;
           case 'failed':
+            log('Connection failed');
+            if (!isManualDisconnectRef.current) {
+              handleConnectionFailure();
+            }
+            break;
           case 'disconnected':
+            log('Disconnected from Pusher');
             if (!isManualDisconnectRef.current) {
               handleConnectionFailure();
             }
@@ -267,9 +348,29 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
         }
       };
 
-      const handleError = (err: Error) => {
-        log('Connection error:', err);
-        setError(err);
+      const handleError = (err: any) => {
+        const { code, message } = parsePusherError(err);
+        
+        // Log with structured error information
+        if (code !== null) {
+          const errorName = PUSHER_ERROR_CODES[code as keyof typeof PUSHER_ERROR_CODES] || 'Unknown error';
+          log(`Connection error: [${code}] ${errorName} - ${message}`);
+          
+          // Check if this is a non-recoverable error
+          if (!isRecoverableError(code)) {
+            log(`Non-recoverable error code ${code}, stopping reconnection attempts`);
+            const nonRecoverableError = new Error(`Pusher error [${code}]: ${message}`);
+            nonRecoverableErrorRef.current = nonRecoverableError; // Store for reference
+            reconnectAttemptsRef.current = RECONNECT_CONFIG.maxAttempts; // Prevent further reconnection
+            setError(nonRecoverableError);
+            return;
+          }
+        } else {
+          log('Connection error:', err);
+        }
+        
+        // For recoverable errors, set error but allow reconnection logic to handle
+        setError(err instanceof Error ? err : new Error(message));
       };
 
       // Bind connection event handlers
@@ -348,6 +449,7 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
     log('Manual reconnect requested');
     isManualDisconnectRef.current = false;
     reconnectAttemptsRef.current = 0;
+    nonRecoverableErrorRef.current = null; // Clear non-recoverable error flag
     setError(null);
     
     // The client will auto-reconnect when we clear the manual disconnect flag

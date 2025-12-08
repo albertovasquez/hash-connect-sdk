@@ -9,6 +9,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.1.11] - 2025-12-08
+
+### 🐛 Critical Bug Fixes - Pusher Error Handling
+
+Fixed two critical bugs in Pusher error handling that could cause inefficient reconnection attempts and loss of debugging information.
+
+### Fixed
+
+#### Bug 1: Error Code 4000 Treated as Recoverable
+
+- **Issue**: Error code `4000` ("Application only accepts SSL") was not included in the `nonRecoverableErrors` list, causing wasted reconnection attempts
+- **Impact**: SDK would retry connection 5 times (up to 62 seconds) even though SSL protocol change is required
+- **Fix**: Added `4000` to non-recoverable errors list
+- **Result**: Immediate failure with clear error message: `"Pusher error [4000]: Application only accepts SSL"`
+
+#### Bug 2: Non-Recoverable Error Messages Overwritten
+
+- **Issue**: Specific error messages for non-recoverable errors (4000, 4001, 4003, 4009, 4100) were being overwritten with generic "Max reconnection attempts reached" message
+- **Impact**: Developers lost critical debugging information (error codes and detailed messages)
+- **Fix**: Added `nonRecoverableErrorRef` to track and preserve non-recoverable error messages through connection state changes
+- **Result**: Specific error messages now preserved, making debugging much easier
+
+### Changed
+
+- **`isRecoverableError()`** - Added error code `4000` to non-recoverable errors list with detailed comments
+- **`handleConnectionFailure()`** - Now checks `nonRecoverableErrorRef` before overwriting error messages
+- **`handleError()`** - Stores non-recoverable errors in ref to preserve error context
+- **`handleStateChange()`** - Clears non-recoverable error ref on successful connection
+- **`reconnect()`** - Clears non-recoverable error ref to allow manual reconnection
+
+### Documentation
+
+- Updated `docs/PUSHER_ERROR_HANDLING.md` to include error 4000 in non-recoverable errors table
+- Added `BUG_FIXES_v3.1.11.md` with comprehensive bug analysis, test cases, and verification details
+
+### Technical Details
+
+See [BUG_FIXES_v3.1.11.md](./BUG_FIXES_v3.1.11.md) for:
+
+- Root cause analysis
+- Complete fix implementation
+- Test cases and scenarios
+- Migration guide (no changes required)
+
+---
+
+## [3.1.10] - 2025-12-08
+
+### 🔧 Enhanced Pusher Error Handling
+
+Improved handling of Pusher WebSocket connection errors with better parsing, logging, and recovery strategies.
+
+### Added
+
+- **Pusher error code definitions** - Comprehensive mapping of all standard Pusher error codes (1006, 4000-4202)
+- **Error parsing function** - Extracts code and message from Pusher's error structure
+- **Recoverable vs non-recoverable logic** - Smart detection of which errors should trigger reconnection
+- **Enhanced error logging** - Structured logs with error codes and human-readable names
+- **Detailed state change logging** - Better visibility into connection state transitions
+- **Comprehensive documentation** - New `docs/PUSHER_ERROR_HANDLING.md` guide covering all error codes
+
+### Changed
+
+- **Error handler** - Now parses Pusher error structure and logs with context: `[1006] Connection interrupted - Connection interrupted (200)`
+- **Non-recoverable error handling** - Stops reconnection attempts for config/auth errors (4001, 4003, 4009, 4100)
+- **State change handler** - Added detailed logging for all connection states (connected, connecting, unavailable, failed, disconnected)
+- **README.md** - Added Pusher error handling troubleshooting section and documentation links
+
+### Fixed
+
+- **Error code 1006 handling** - "Connection interrupted" errors now properly logged with context
+- **Reconnection for config errors** - SDK no longer wastes attempts reconnecting for non-recoverable errors
+- **Error visibility** - Developers can now see exactly what Pusher error occurred
+
+### Documentation
+
+- Added `docs/PUSHER_ERROR_HANDLING.md` - Complete guide covering:
+  - All Pusher error codes and meanings
+  - Error code 1006 deep dive
+  - Reconnection strategy and configuration
+  - Connection state flow diagrams
+  - Monitoring and debugging best practices
+  - Troubleshooting guide
+- Added `PUSHER_ERROR_IMPROVEMENTS.md` - Summary of changes for this release
+
+### Impact
+
+- **Better debugging** - Clear, structured error logs with error codes
+- **Smarter recovery** - No wasted reconnection attempts on non-recoverable errors
+- **Improved monitoring** - Can alert on specific error codes
+- **Better documentation** - Comprehensive guide for understanding and handling errors
+
+---
+
 ## [3.1.0] - 2025-12-08
 
 ### 🎉 Enhanced Developer Experience
