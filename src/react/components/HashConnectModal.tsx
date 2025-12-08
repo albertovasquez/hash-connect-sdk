@@ -28,8 +28,6 @@ export interface HashConnectModalProps {
   title?: string;
   /** Subtitle (default: "Connect") */
   subtitle?: string;
-  /** Whether authentication is in progress (prevents accidental closure) */
-  isAuthenticating?: boolean;
 }
 
 // Default Hash Pass logo
@@ -58,7 +56,6 @@ export const HashConnectModal: React.FC<HashConnectModalProps> = ({
   logoUrl = DEFAULT_LOGO_URL,
   title = 'Hash Pass',
   subtitle = 'Connect',
-  isAuthenticating = false,
 }) => {
   // Use ref for onClose to ensure stable handler reference
   // This prevents the effect from re-running when onClose changes
@@ -67,20 +64,8 @@ export const HashConnectModal: React.FC<HashConnectModalProps> = ({
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  // Handle escape key to close modal
-  // Only allow Escape during non-authenticating states (user must explicitly click X during auth)
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isAuthenticating) {
-        onCloseRef.current();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, isAuthenticating]);
+  // Escape key handler removed - modal should only close via X button
+  // This prevents accidental closure during authentication flow
 
   // Prevent body scroll when modal is open
   useEffect(() => {
