@@ -902,6 +902,12 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
   // =========================================================================
 
   const sessionUrl = state.sessionId ? `hc:${state.sessionId}` : '';
+  
+  // Consider modal as "authenticating" when:
+  // - Loading (initial connection setup)
+  // - User has scanned QR code but not completed auth (userAddress exists but not connected)
+  // This prevents accidental closure during the critical auth flow
+  const isAuthenticating = state.isLoading || (!!state.userAddress && !state.isConnected);
 
   return (
     <HashConnectContext.Provider value={contextValue}>
@@ -913,6 +919,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
         sessionUrl={sessionUrl}
         connectionState={connectionState}
         disclaimer={disclaimer}
+        isAuthenticating={isAuthenticating}
       />
     </HashConnectContext.Provider>
   );
