@@ -20,7 +20,7 @@
  * ```
  */
 
-import React, { useState, useCallback, useEffect, useRef, useContext } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useContext, useMemo } from 'react';
 import { usePusher } from './hooks/usePusher';
 import { useStorage, STORAGE_KEYS } from './hooks/useStorage';
 import { useTokenRefresh } from './hooks/useTokenRefresh';
@@ -656,7 +656,9 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
   // Context Value
   // =========================================================================
 
-  const contextValue: HashConnectContextType = {
+  // Memoize context value to prevent unnecessary re-renders of consuming components
+  // Only creates a new object reference when actual values change
+  const contextValue = useMemo<HashConnectContextType>(() => ({
     ...state,
     connect,
     disconnect: handleDisconnect,
@@ -665,7 +667,16 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     getClubName,
     connectionState,
     makeAuthRequest,
-  };
+  }), [
+    state,
+    connect,
+    handleDisconnect,
+    getToken,
+    getClubId,
+    getClubName,
+    connectionState,
+    makeAuthRequest,
+  ]);
 
   // =========================================================================
   // Render
