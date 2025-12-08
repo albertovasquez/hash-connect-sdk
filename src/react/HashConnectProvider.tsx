@@ -57,6 +57,47 @@ export interface HashConnectProviderProps {
 }
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Validate that a token is a valid JWT format and not expired
+ * Used for cross-tab synchronization to avoid setting isConnected with invalid tokens
+ */
+function validateTokenFormat(token: string | null): boolean {
+  if (!token || typeof token !== 'string') return false;
+  
+  try {
+    // Check JWT format (3 parts separated by dots)
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    
+    // Try to decode and parse the payload
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    
+    const parsed = JSON.parse(jsonPayload);
+    
+    // Check for expiration claim
+    if (!parsed.exp || typeof parsed.exp !== 'number') return false;
+    
+    // Check if token is expired
+    if (Date.now() >= parsed.exp * 1000) return false;
+    
+    return true;
+  } catch {
+    // Any parsing error means invalid token
+    return false;
+  }
+}
+
+// ============================================================================
 // Provider Component
 // ============================================================================
 
@@ -207,16 +248,26 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
         // Update sessionIdRef to keep it in sync
         sessionIdRef.current = storedSessionId;
         
+        // Validate token before considering connected
+        // Check both that address exists AND token is valid (parseable and not expired)
+        const newToken = event.newValue;
+        const isValidToken = validateTokenFormat(newToken);
+        const shouldBeConnected = !!storedAddress && isValidToken;
+        
+        if (!isValidToken && newToken) {
+          log('⚠️ Token from another tab is invalid or expired, not setting connected');
+        }
+        
         setState(prev => ({
           ...prev,
-          accessToken: event.newValue,
+          accessToken: newToken,
           refreshToken: storedRefreshToken,
           userAddress: storedAddress,
           clubId: storedClubId,
           clubName: storedClubName,
           signature: storedSignature,
           sessionId: storedSessionId,
-          isConnected: !!storedAddress, // Only connected if we have an address
+          isConnected: shouldBeConnected,
         }));
       }
     };
@@ -415,10 +466,12 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       channel.bind('client-send-unauthorization-to-site', handleUnauthorization);
 
       // Update state and open modal
+      // Reset isLoading since we've transitioned from "initializing" to "waiting for user"
       setState(prev => ({
         ...prev,
         sessionId,
         isModalOpen: true,
+        isLoading: false,
       }));
 
       log('✅ Session created, modal opened');
