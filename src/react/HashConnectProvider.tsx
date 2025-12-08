@@ -603,18 +603,54 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
   const handleCloseModal = useCallback(() => {
     log('🔒 Modal closed');
     
-    // If not connected yet, cleanup the session
-    if (!state.isConnected && state.sessionId) {
-      unsubscribe(`private-hc-${state.sessionId}`);
-      storage.removeItem(STORAGE_KEYS.SESSION_ID);
+    // If not connected yet, cleanup channels but preserve user identification
+    // This handles the case where user scanned QR (handleHashPassConnect ran)
+    // but closed the modal before authorization completed
+    if (!state.isConnected) {
+      // Cleanup session channel (session-specific, always clear)
+      if (state.sessionId) {
+        unsubscribe(`private-hc-${state.sessionId}`);
+        storage.removeItem(STORAGE_KEYS.SESSION_ID);
+      }
+      
+      // Cleanup user channel subscription if one was created (QR was scanned)
+      // But preserve userAddress and signature for potential re-connection
+      // or for parent app to know a partial connection was attempted
+      if (state.userAddress) {
+        unsubscribe(`private-${state.userAddress}`);
+        // Note: We intentionally DO NOT clear ADDRESS and SIGNATURE from storage
+        // These are user identification data that should persist for re-connection attempts
+      }
+      
+      // Clear channel refs
+      sessionChannelRef.current = null;
+      userChannelRef.current = null;
+      sessionIdRef.current = null;
+      
+      // Reset session-specific state but preserve user identification data
+      // userAddress and signature are kept so parent app knows user scanned QR
+      setState(prev => ({
+        ...prev,
+        isModalOpen: false,
+        isLoading: false,
+        isConnected: false,
+        sessionId: null,
+        accessToken: null,
+        refreshToken: null,
+        clubId: null,
+        clubName: null,
+        error: null,
+        // Preserve: userAddress, signature (user identification from QR scan)
+      }));
+    } else {
+      // Already connected, just close the modal
+      setState(prev => ({
+        ...prev,
+        isModalOpen: false,
+        isLoading: false,
+      }));
     }
-
-    setState(prev => ({
-      ...prev,
-      isModalOpen: false,
-      isLoading: false,
-    }));
-  }, [state.isConnected, state.sessionId, unsubscribe, storage, log]);
+  }, [state.isConnected, state.sessionId, state.userAddress, unsubscribe, storage, log]);
 
   // =========================================================================
   // Context Value

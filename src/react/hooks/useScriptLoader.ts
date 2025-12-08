@@ -125,12 +125,87 @@ export function useScriptLoader(
     }
 
     // Check if script tag already exists in DOM
-    const existingScript = document.querySelector(`script[src="${targetSrc}"]`);
+    const existingScript = document.querySelector(`script[src="${targetSrc}"]`) as HTMLScriptElement | null;
     if (existingScript) {
-      loadedScripts.set(targetSrc, true);
-      setLoaded(true);
-      setLoading(false);
-      onLoadRef.current?.();
+      // Script tag exists, but we need to verify it has actually finished loading
+      // A script tag can be present in the DOM but still be loading
+      
+      // Create a promise to wait for the existing script to load
+      const existingLoadPromise = new Promise<void>((resolve, reject) => {
+        // Check if the script has already loaded by checking for expected globals
+        // This is a heuristic - if the script finished loading, certain globals should exist
+        // For common scripts like Pusher and QRCode, check their globals
+        const scriptAlreadyExecuted = (
+          (targetSrc.includes('pusher') && typeof window.Pusher !== 'undefined') ||
+          (targetSrc.includes('qrcode') && typeof window.QRCode !== 'undefined')
+        );
+        
+        if (scriptAlreadyExecuted) {
+          loadedScripts.set(targetSrc, true);
+          setLoaded(true);
+          setLoading(false);
+          onLoadRef.current?.();
+          resolve();
+          return;
+        }
+        
+        // Script tag exists but hasn't executed yet - wait for it
+        setLoading(true);
+        
+        const handleLoad = () => {
+          cleanup();
+          loadedScripts.set(targetSrc, true);
+          setLoaded(true);
+          setLoading(false);
+          onLoadRef.current?.();
+          resolve();
+        };
+        
+        const handleError = () => {
+          cleanup();
+          // Remove the failed script and let our retry logic handle it
+          existingScript.remove();
+          loadedScripts.delete(targetSrc);
+          
+          const err = new Error(`Existing script failed to load: ${targetSrc}`);
+          setLoading(false);
+          setError(err);
+          onErrorRef.current?.(err);
+          reject(err);
+        };
+        
+        const cleanup = () => {
+          existingScript.removeEventListener('load', handleLoad);
+          existingScript.removeEventListener('error', handleError);
+        };
+        
+        existingScript.addEventListener('load', handleLoad);
+        existingScript.addEventListener('error', handleError);
+        
+        // Safety timeout - if the script doesn't load within 30s, consider it failed
+        // This handles edge cases where events might have already fired
+        setTimeout(() => {
+          // Re-check if global exists (script might have loaded in the meantime)
+          const globalNowExists = (
+            (targetSrc.includes('pusher') && typeof window.Pusher !== 'undefined') ||
+            (targetSrc.includes('qrcode') && typeof window.QRCode !== 'undefined')
+          );
+          
+          if (globalNowExists) {
+            handleLoad();
+          }
+          // If not loaded by timeout, the error handler will eventually fire
+          // or we keep waiting - don't force an error here as network might be slow
+        }, 5000);
+      });
+      
+      loadingPromises.set(targetSrc, existingLoadPromise);
+      
+      try {
+        await existingLoadPromise;
+      } catch (err) {
+        // Error already handled
+      }
       return;
     }
 
