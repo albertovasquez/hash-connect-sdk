@@ -201,6 +201,11 @@ export function useTokenRefresh(options: UseTokenRefreshOptions): UseTokenRefres
   const refreshTokenRef = useRef(refreshToken);
   const addressRef = useRef(address);
   const isRefreshingRef = useRef(false);
+  
+  // Refs for callbacks to maintain stable references and prevent
+  // unnecessary recreations of the refresh function
+  const onTokensRefreshedRef = useRef(onTokensRefreshed);
+  const onRefreshFailedRef = useRef(onRefreshFailed);
 
   // Update refs when props change
   useEffect(() => {
@@ -208,6 +213,15 @@ export function useTokenRefresh(options: UseTokenRefreshOptions): UseTokenRefres
     refreshTokenRef.current = refreshToken;
     addressRef.current = address;
   }, [accessToken, refreshToken, address]);
+
+  // Keep callback refs in sync with latest callbacks
+  useEffect(() => {
+    onTokensRefreshedRef.current = onTokensRefreshed;
+  }, [onTokensRefreshed]);
+
+  useEffect(() => {
+    onRefreshFailedRef.current = onRefreshFailed;
+  }, [onRefreshFailed]);
 
   const log = useCallback((...args: unknown[]) => {
     if (debug) console.log('[useTokenRefresh]', ...args);
@@ -263,6 +277,7 @@ export function useTokenRefresh(options: UseTokenRefreshOptions): UseTokenRefres
 
   /**
    * Manual refresh function exposed to consumers
+   * Uses refs for callbacks to maintain stable identity across renders
    */
   const refresh = useCallback(async (): Promise<{ accessToken: string; refreshToken: string } | null> => {
     // SSR safety
@@ -289,7 +304,8 @@ export function useTokenRefresh(options: UseTokenRefreshOptions): UseTokenRefres
       
       log('Token refresh successful');
       setFailureCount(0);
-      onTokensRefreshed(tokens);
+      // Use ref to invoke the latest callback without recreating this function
+      onTokensRefreshedRef.current(tokens);
       
       return tokens;
     } catch (err) {
@@ -299,14 +315,15 @@ export function useTokenRefresh(options: UseTokenRefreshOptions): UseTokenRefres
       log('Token refresh failed:', classified);
       setError(classified);
       setFailureCount(prev => prev + 1);
-      onRefreshFailed(classified);
+      // Use ref to invoke the latest callback without recreating this function
+      onRefreshFailedRef.current(classified);
       
       return null;
     } finally {
       isRefreshingRef.current = false;
       setIsRefreshing(false);
     }
-  }, [performRefresh, onTokensRefreshed, onRefreshFailed, log]);
+  }, [performRefresh, log]);
 
   /**
    * Check if current token is expired

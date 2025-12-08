@@ -1,27 +1,24 @@
-# HashConnect SDK
+# HashConnect SDK v3
 
-> Secure authentication and wallet integration for web applications
+> React-only authentication and wallet integration for web applications
 
 [![npm version](https://badge.fury.io/js/%40hashpass%2Fconnect.svg)](https://www.npmjs.com/package/@hashpass/connect)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-HashConnect SDK provides a simple and secure way to integrate HASH Pass authentication into your web applications. It offers seamless wallet connection, token management, and user authentication through QR code scanning.
+HashConnect SDK provides a simple and secure way to integrate HASH Pass authentication into your React applications. It offers seamless wallet connection, token management, and user authentication through QR code scanning.
 
-## 🎉 What's New in v2.0.0
+## 🎉 What's New in v3.0.0
 
-**Production-Ready Stability Release** - Comprehensive improvements to connection reliability:
+**React-Only Architecture** - Complete rewrite for modern React applications:
 
-- ✅ **No more session loss after refresh** - Smart token validation prevents expired reconnections
-- ✅ **No more auth timeouts** - Proactive token refresh keeps sessions alive
-- ✅ **Better network resilience** - 5 reconnection attempts with automatic event re-binding
-- ✅ **Cross-tab synchronization** - Multiple tabs stay in sync
-- ✅ **Clean React integration** - Proper disconnect API and memoized hooks
+- ✅ **Pure React** - No more `window.HASHConnect` or CustomEvents
+- ✅ **Single source of truth** - State managed entirely in React Context
+- ✅ **SSR/Next.js support** - All hooks are SSR-safe with `'use client'` directives
+- ✅ **TypeScript-first** - Full type safety with exported types
+- ✅ **Smaller bundle** - Removed duplicate state management code
+- ✅ **Better DX** - Simple Provider + Hook pattern
 
-See [STABILITY_CHANGELOG.md](./STABILITY_CHANGELOG.md) for complete details.
-
-### 📚 New in v2.0.1
-
-- [Complete React Integration Guide](./REACT_INTEGRATION_GUIDE.md) - Comprehensive guide for React developers with best practices, common pitfalls, and advanced patterns
+> ⚠️ **Breaking Changes**: v3 is React-only. See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for upgrading from v2.
 
 ## Features
 
@@ -31,13 +28,16 @@ See [STABILITY_CHANGELOG.md](./STABILITY_CHANGELOG.md) for complete details.
 ⚡ **Real-time** - Powered by Pusher for instant connection updates  
 🎨 **Customizable** - Style the UI to match your brand  
 ♻️ **Session Persistence** - Automatic reconnection on page refresh  
-🔄 **Smart Reconnection** - No page refresh needed after disconnect  
-⚛️ **React Support** - Built-in hooks and context provider included  
-🛡️ **Production Ready** - Comprehensive stability improvements in v2.0
+🔄 **Cross-tab Sync** - Multiple tabs stay in sync automatically  
+⚛️ **React Native** - Built specifically for React applications  
+🛡️ **Production Ready** - Battle-tested in production environments
+
+## Requirements
+
+- **React** 17.0.0 or higher
+- **Node.js** 16.0.0 or higher
 
 ## Installation
-
-### NPM/Yarn
 
 ```bash
 npm install @hashpass/connect
@@ -47,293 +47,315 @@ npm install @hashpass/connect
 yarn add @hashpass/connect
 ```
 
-### CDN
-
-```html
-<script src="https://unpkg.com/@hashpass/connect/dist/hash-connect.js"></script>
+```bash
+pnpm add @hashpass/connect
 ```
 
 ## Quick Start
 
-### Vanilla JavaScript
-
-```html
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>My App</title>
-  </head>
-  <body>
-    <!-- The SDK will inject the connect button here -->
-    <div id="hash-connect"></div>
-
-    <script src="https://unpkg.com/@hashpass/connect/dist/hash-connect.js"></script>
-    <script>
-      // Listen for connection events
-      document.addEventListener("hash-connect-event", (event) => {
-        if (event.detail.eventType === "connected") {
-          console.log("User connected:", event.detail.user);
-        } else if (event.detail.eventType === "disconnected") {
-          console.log("User disconnected");
-        }
-      });
-
-      // Or manually trigger connection
-      async function connect() {
-        await window.HASHConnect.connect();
-      }
-
-      // Get user token for API calls
-      async function makeAuthenticatedRequest() {
-        const token = await window.HASHConnect.getToken();
-
-        const response = await fetch("https://api.example.com/data", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        return response.json();
-      }
-    </script>
-  </body>
-</html>
-```
-
-### React
-
-The SDK includes built-in React hooks! Just import and use:
+### 1. Wrap your app with the Provider
 
 ```tsx
-import { useHashConnect } from "@hashpass/connect/react";
+// App.tsx
+import { HashConnectProvider } from "@hashpass/connect";
 
 function App() {
-  const { isConnected, userAddress, connect, disconnect, getToken } =
-    useHashConnect();
+  return (
+    <HashConnectProvider disclaimer="By connecting, you agree to our terms.">
+      <MyApp />
+    </HashConnectProvider>
+  );
+}
+```
+
+### 2. Use the hook in your components
+
+```tsx
+// MyComponent.tsx
+import { useHashConnect } from "@hashpass/connect";
+
+function MyComponent() {
+  const {
+    isConnected,
+    userAddress,
+    connect,
+    disconnect,
+    getToken,
+    isLoading,
+    error,
+  } = useHashConnect();
 
   const handleApiCall = async () => {
     const token = await getToken();
-    // Make authenticated API call
+    if (token) {
+      const response = await fetch("https://api.example.com/data", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
   };
+
+  if (isLoading) {
+    return <div>Connecting...</div>;
+  }
+
+  if (isConnected) {
+    return (
+      <div>
+        <p>Connected: {userAddress}</p>
+        <button onClick={handleApiCall}>Make API Call</button>
+        <button onClick={disconnect}>Disconnect</button>
+      </div>
+    );
+  }
 
   return (
     <div>
-      {isConnected ? (
-        <div>
-          <p>Connected: {userAddress}</p>
-          <button onClick={handleApiCall}>Make API Call</button>
-        </div>
-      ) : (
-        <button onClick={connect}>Connect with HASH Pass</button>
-      )}
+      <button onClick={connect}>Connect with HASH Pass</button>
+      {error && <p className="error">{error}</p>}
     </div>
   );
 }
 ```
 
+That's it! The modal, QR code, and connection management are all handled automatically.
+
 ## API Reference
 
-### `window.HASHConnect`
+### `HashConnectProvider`
 
-The SDK exposes a global object with the following methods:
+The context provider that manages all authentication state.
 
-#### `connect(): Promise<void>`
-
-Initiates the connection flow and opens the QR code modal.
-
-```javascript
-await window.HASHConnect.connect();
+```tsx
+<HashConnectProvider
+  debug={false} // Enable debug logging
+  disclaimer="Your terms here" // Text shown in modal
+  config={{
+    // Optional custom config
+    pusherKey: "your-key",
+    pusherCluster: "us2",
+    authEndpoint: "https://api.example.com",
+  }}
+>
+  {children}
+</HashConnectProvider>
 ```
 
-#### `getToken(): Promise<string | null>`
+### `useHashConnect()`
 
-Retrieves the current access token. Automatically refreshes expired tokens.
+The main hook for accessing authentication state and methods.
 
-```javascript
-const token = await window.HASHConnect.getToken();
+```tsx
+const {
+  // State
+  isConnected, // boolean - Whether user is connected
+  isLoading, // boolean - Whether connection is in progress
+  isModalOpen, // boolean - Whether modal is visible
+  userAddress, // string | null - Connected wallet address
+  clubId, // string | null - User's club ID
+  clubName, // string | null - User's club name
+  error, // string | null - Current error message
+  connectionState, // string - Pusher connection state
+
+  // Methods
+  connect, // () => Promise<void> - Start connection flow
+  disconnect, // () => void - Disconnect and clear session
+  getToken, // () => Promise<string | null> - Get valid access token
+  getClubId, // () => string | null - Get club ID
+  getClubName, // () => string | null - Get club name
+  makeAuthRequest, // <T>(url, options?) => Promise<T> - Make authenticated request
+} = useHashConnect();
 ```
 
-#### `getUser(): { address: string | null } | undefined`
+### `makeAuthRequest`
 
-Gets the currently connected user information.
+Helper for making authenticated API calls:
 
-```javascript
-const user = window.HASHConnect.getUser();
-console.log(user?.address); // "0x..."
-```
+```tsx
+const { makeAuthRequest } = useHashConnect();
 
-#### `isReady(): boolean`
+// Token is automatically included in Authorization header
+const data = await makeAuthRequest<{ items: Item[] }>(
+  "https://api.example.com/items"
+);
 
-Checks if a user is connected.
-
-```javascript
-const isConnected = window.HASHConnect.isReady();
-```
-
-#### `disconnect(): void` **✨ New in v2.0**
-
-Programmatically disconnects the user and cleans up the session.
-
-```javascript
-window.HASHConnect.disconnect();
-```
-
-#### `getClubId(): string | null`
-
-Gets the club ID of the connected user (if available).
-
-```javascript
-const clubId = window.HASHConnect.getClubId();
-```
-
-#### `getClubName(): string | null`
-
-Gets the club name of the connected user (if available).
-
-```javascript
-const clubName = window.HASHConnect.getClubName();
-```
-
-## Events
-
-The SDK dispatches custom `hash-connect-event` events:
-
-```javascript
-document.addEventListener("hash-connect-event", (event) => {
-  const { eventType, user } = event.detail;
-
-  if (eventType === "connected") {
-    console.log("User connected:", user);
-  } else if (eventType === "disconnected") {
-    console.log("User disconnected");
+// With custom options
+const result = await makeAuthRequest<{ success: boolean }>(
+  "https://api.example.com/action",
+  {
+    method: "POST",
+    body: JSON.stringify({ action: "do-something" }),
   }
+);
+```
+
+## Next.js Integration
+
+The SDK is fully compatible with Next.js (both Pages Router and App Router).
+
+### App Router (Next.js 13+)
+
+```tsx
+// app/providers.tsx
+"use client";
+
+import { HashConnectProvider } from "@hashpass/connect";
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <HashConnectProvider disclaimer="By connecting...">
+      {children}
+    </HashConnectProvider>
+  );
+}
+
+// app/layout.tsx
+import { Providers } from "./providers";
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}
+```
+
+### Pages Router
+
+```tsx
+// pages/_app.tsx
+import { HashConnectProvider } from "@hashpass/connect";
+
+export default function App({ Component, pageProps }) {
+  return (
+    <HashConnectProvider disclaimer="By connecting...">
+      <Component {...pageProps} />
+    </HashConnectProvider>
+  );
+}
+```
+
+## Advanced Usage
+
+### Custom Components
+
+Export individual UI components for custom layouts:
+
+```tsx
+import {
+  HashConnectModal,
+  QRCodeDisplay,
+  ConnectionStatusIndicator
+} from '@hashpass/connect';
+
+// Use components individually
+<QRCodeDisplay value="hc:session123" size={200} />
+<ConnectionStatusIndicator status="connected" />
+```
+
+### Core Hooks
+
+For advanced use cases, access the underlying hooks:
+
+```tsx
+import {
+  useStorage,
+  usePusher,
+  useTokenRefresh,
+  useScriptLoader,
+} from "@hashpass/connect";
+
+// SSR-safe localStorage with fallback
+const storage = useStorage({ prefix: "myapp:" });
+
+// Pusher connection management
+const { client, connectionState, subscribe } = usePusher({
+  key: "your-key",
+  cluster: "us2",
 });
-```
-
-## Configuration
-
-The SDK automatically injects a connect button into any element with the `id="hash-connect"`:
-
-```html
-<div id="hash-connect"></div>
-```
-
-To use your own custom button:
-
-```html
-<button onclick="window.HASHConnect.connect()">Connect Wallet</button>
 ```
 
 ## Styling
 
-The SDK comes with default styles. Customize them by overriding these CSS selectors:
+The SDK uses specific CSS class names and IDs that you can override:
 
 ```css
-/* Connect button */
-#hash-connect-btn {
-  background: your-color;
-  border-radius: 8px;
-  padding: 12px 24px;
-}
-
-/* Disconnect button */
-#hash-connect-disconnect-btn {
-  background: your-color;
-  padding: 8px 16px;
-}
-
 /* Modal overlay */
-#hash-connect-modal-overlay {
+#hash-connect-modal {
   backdrop-filter: blur(4px);
 }
 
 /* Modal content */
-#hash-connect-modal {
+#hash-connect-modal-content {
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+/* QR Code container */
+#hash-connect-qrcode {
+  padding: 16px;
+}
+
+/* Status indicator */
+#hash-connect-status-indicator {
+  font-size: 14px;
+}
+
+/* Status dot colors */
+.status-connected {
+  background: #10b981;
+}
+.status-connecting {
+  background: #f59e0b;
+}
+.status-disconnected {
+  background: #ef4444;
 }
 ```
 
 ## Local Storage
 
-The SDK stores session data in localStorage:
+Session data is stored with the `hc:` prefix:
 
 - `hc:sessionId` - Current session identifier
 - `hc:address` - Connected user address
 - `hc:accessToken` - JWT access token
 - `hc:refreshToken` - JWT refresh token
 - `hc:signature` - User signature
+- `hc:clubId` - User's club ID
+- `hc:clubName` - User's club name
 
-To manually clear the session:
+## TypeScript
 
-```javascript
-localStorage.removeItem("hc:sessionId");
-localStorage.removeItem("hc:address");
-localStorage.removeItem("hc:accessToken");
-localStorage.removeItem("hc:refreshToken");
-localStorage.removeItem("hc:signature");
+Full TypeScript support with exported types:
+
+```tsx
+import type {
+  AuthState,
+  HashConnectContextType,
+  UseHashConnectReturn,
+  ConnectionState,
+} from "@hashpass/connect";
 ```
 
 ## Building from Source
 
-First, install dependencies:
-
 ```bash
+# Install dependencies
 npm install
-```
 
-Build for production:
-
-```bash
+# Build for production
 npm run build
+
+# Type check
+npm run typecheck
 ```
-
-Build for development (with watch mode):
-
-```bash
-npm run build-dev
-```
-
-Clean build artifacts:
-
-```bash
-npm run clean
-```
-
-## Development
-
-### Prerequisites
-
-- Node.js 16+
-- npm or yarn
-
-### Project Structure
-
-```
-hash-connect-sdk/
-├── src/
-│   ├── domains/          # Core domain logic
-│   │   └── UserAgent/    # User authentication logic
-│   ├── eventListeners/   # Event handlers
-│   ├── types/            # TypeScript type definitions
-│   └── utils/            # Utility functions
-├── dist/                 # Compiled output
-├── types/                # Global type definitions
-└── webpack.config.js     # Webpack configuration
-```
-
-### Testing
-
-Load `dist/index.html` in your browser to test the SDK locally.
-
-## Publishing to NPM
-
-1. Update version in `package.json`
-2. Build the project: `npm run build`
-3. Login to npm: `npm login`
-4. Publish: `npm publish`
-
-The `prepublishOnly` script automatically builds before publishing.
 
 ## Browser Support
 
@@ -343,33 +365,47 @@ The `prepublishOnly` script automatically builds before publishing.
 
 ## Security
 
-- JWT tokens are stored in localStorage
+- JWT tokens stored in localStorage
 - Automatic token refresh before expiration
 - Secure Pusher channel authentication
 - Session cleanup on disconnect
+- No sensitive data exposed to global scope
 
 ## Troubleshooting
 
-### SDK not loading
+### "useHashConnect must be used within a HashConnectProvider"
 
-Ensure the script is fully loaded before calling methods:
+Ensure your component is wrapped with the provider:
 
-```javascript
-const interval = setInterval(() => {
-  if (window.HASHConnect) {
-    clearInterval(interval);
-    // SDK is ready
-  }
-}, 100);
+```tsx
+<HashConnectProvider>
+  <YourComponent /> {/* useHashConnect works here */}
+</HashConnectProvider>
 ```
 
 ### Connection not persisting
 
-Check that localStorage is not being cleared by other scripts or browser settings.
+The SDK automatically restores sessions from localStorage. If issues persist:
 
-### QR code not appearing
+```javascript
+// Clear session manually
+localStorage.removeItem("hc:accessToken");
+localStorage.removeItem("hc:refreshToken");
+localStorage.removeItem("hc:address");
+```
 
-Ensure the modal container exists and isn't being blocked by other elements with high z-index.
+### Next.js hydration errors
+
+Ensure the provider is marked as a client component:
+
+```tsx
+"use client";
+import { HashConnectProvider } from "@hashpass/connect";
+```
+
+## Migration from v2
+
+See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for detailed upgrade instructions.
 
 ## Contributing
 
