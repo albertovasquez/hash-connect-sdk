@@ -95,12 +95,10 @@ export const HashConnectModal: React.FC<HashConnectModalProps> = ({
   }, [isOpen]);
 
   // Handle backdrop click
-  // Prevent closing when clicking outside during authentication flow
+  // Do nothing - prevent closing when clicking outside the modal
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !isAuthenticating) {
-      onCloseRef.current();
-    }
-  }, [isAuthenticating]);
+    // Intentionally empty - modal should only close via X button
+  }, []);
 
   // Handle content click (stop propagation)
   const handleContentClick = useCallback((e: React.MouseEvent) => {
