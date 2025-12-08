@@ -241,7 +241,8 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       log('📦 Storage changed in another tab:', event.key);
 
       // Another tab disconnected (accessToken removed)
-      if (event.key === 'hc:accessToken' && !event.newValue && event.oldValue) {
+      // Use strict null check - empty string is a stored value, not a removal
+      if (event.key === 'hc:accessToken' && event.newValue === null && event.oldValue) {
         log('🔌 Disconnect detected from another tab');
         setState(initialAuthState);
         return;
