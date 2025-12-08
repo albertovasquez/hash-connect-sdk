@@ -19,6 +19,10 @@ HashConnect SDK provides a simple and secure way to integrate HASH Pass authenti
 
 See [STABILITY_CHANGELOG.md](./STABILITY_CHANGELOG.md) for complete details.
 
+### 📚 New in v2.0.1
+
+- [Complete React Integration Guide](./REACT_INTEGRATION_GUIDE.md) - Comprehensive guide for React developers with best practices, common pitfalls, and advanced patterns
+
 ## Features
 
 ✨ **Easy Integration** - Add authentication to your app in minutes  

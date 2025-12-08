@@ -78,8 +78,3 @@ if (document.readyState === 'loading') {
 
 // Initialize or add the HASHConnect property on the window object
 window.HASHConnect = window.HASHConnect || UserAgent;
-
-// Expose storage for React components to use SafeStorage consistently
-if (window.HASHConnect) {
-    (window.HASHConnect as any)._storage = storage;
-}

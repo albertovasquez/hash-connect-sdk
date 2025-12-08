@@ -760,6 +760,9 @@ const makeUserAgent = ({
         logError("[UserAgent] ❌ Error during disconnect:", error);
       }
     },
+    
+    // Expose SafeStorage for React components to use consistently
+    _storage: storage,
   });
 };
 

@@ -194,6 +194,12 @@
 **Fix:** Added `isMonitoringActive` flag to track if monitoring already set up, prevents duplicate listener binding  
 **Impact:** Single connection listener per Pusher instance, prevents duplicate event handling and race conditions
 
+### Error 24: Object Not Extensible - Cannot Add \_storage Property ✅
+
+**Issue:** Attempting to add `_storage` property to `window.HASHConnect` after object creation fails because object is not extensible/sealed  
+**Fix:** Included `_storage: storage` directly in the object returned by `makeUserAgent()` instead of trying to add it later in `index.ts`  
+**Impact:** React components can now safely access SafeStorage via `window.HASHConnect._storage` without runtime errors
+
 ---
 
 ## Files Modified (Final)

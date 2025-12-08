@@ -1,6 +1,6 @@
 {
   "name": "@hashpass/connect",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "HashConnect SDK v2 - Production-ready, stable authentication and wallet integration for web applications",
   "main": "dist/hash-connect.js",
   "types": "types/global.d.ts",
