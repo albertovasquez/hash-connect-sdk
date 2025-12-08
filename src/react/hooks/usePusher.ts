@@ -10,6 +10,11 @@ import type { PusherClient, PusherChannel, ConnectionState } from '../../types/p
 // Pusher CDN URL
 const PUSHER_SCRIPT_URL = 'https://js.pusher.com/8.0.1/pusher.min.js';
 
+export interface LogEvent {
+  message: string;
+  timestamp: Date;
+}
+
 export interface UsePusherOptions {
   /** Pusher app key */
   key: string;
@@ -21,6 +26,8 @@ export interface UsePusherOptions {
   debug?: boolean;
   /** Auto-connect on mount (default: true) */
   autoConnect?: boolean;
+  /** Callback for log events (suppresses console output when provided) */
+  onLog?: (event: LogEvent) => void;
 }
 
 export interface UsePusherReturn {
@@ -51,15 +58,6 @@ const RECONNECT_CONFIG = {
   maxDelay: 30000,
 };
 
-declare global {
-  interface Window {
-    Pusher: new (key: string, options: {
-      cluster: string;
-      authEndpoint: string;
-    }) => PusherClient;
-  }
-}
-
 /**
  * Hook for Pusher real-time communication
  * 
@@ -84,7 +82,7 @@ declare global {
  * ```
  */
 export function usePusher(options: UsePusherOptions): UsePusherReturn {
-  const { key, cluster, authEndpoint, debug = false, autoConnect = true } = options;
+  const { key, cluster, authEndpoint, debug = false, autoConnect = true, onLog } = options;
 
   const [client, setClient] = useState<PusherClient | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('initialized');
@@ -104,11 +102,50 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
     clientRef.current = client;
   }, [client]);
 
+  // Centralized logging that respects onLog callback
+  const log = useCallback((...args: unknown[]) => {
+    const message = args.map(arg => {
+      // Handle Error objects specially to preserve message and stack
+      if (arg instanceof Error) {
+        return `${arg.name}: ${arg.message}${arg.stack ? '\n' + arg.stack : ''}`;
+      }
+      // Handle other objects
+      if (typeof arg === 'object' && arg !== null) {
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      }
+      // Handle primitives
+      return String(arg);
+    }).join(' ');
+
+    // If onLog callback is provided, use it (suppresses console output)
+    if (onLog) {
+      onLog({ message: `[usePusher] ${message}`, timestamp: new Date() });
+      return;
+    }
+
+    // Otherwise, use console if debug is enabled
+    if (debug) {
+      console.log('[usePusher]', ...args);
+    }
+  }, [debug, onLog]);
+
   // Memoize script loader callback to prevent useScriptLoader from recreating loadScript
   const handleScriptError = useCallback((err: Error) => {
-    if (debug) console.error('[usePusher] Failed to load Pusher script:', err);
+    const message = `Failed to load Pusher script: ${err.message}`;
+    
+    // Use onLog if provided
+    if (onLog) {
+      onLog({ message: `[usePusher] ${message}`, timestamp: new Date() });
+    } else if (debug) {
+      console.error('[usePusher]', message, err);
+    }
+    
     setError(err);
-  }, [debug]);
+  }, [debug, onLog]);
 
   // Load Pusher script from CDN
   const { loaded: pusherLoaded, loading: pusherLoading, error: scriptError } = useScriptLoader(
@@ -118,10 +155,6 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
       onError: handleScriptError,
     }
   );
-
-  const log = useCallback((...args: unknown[]) => {
-    if (debug) console.log('[usePusher]', ...args);
-  }, [debug]);
 
   // Calculate reconnect delay with exponential backoff
   const getReconnectDelay = useCallback((attempt: number): number => {

@@ -135,13 +135,26 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
   // =========================================================================
 
   const log = useCallback((...args: unknown[]) => {
-    const message = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-    ).join(' ');
+    const message = args.map(arg => {
+      // Handle Error objects specially to preserve message and stack
+      if (arg instanceof Error) {
+        return `${arg.name}: ${arg.message}${arg.stack ? '\n' + arg.stack : ''}`;
+      }
+      // Handle other objects
+      if (typeof arg === 'object' && arg !== null) {
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      }
+      // Handle primitives
+      return String(arg);
+    }).join(' ');
 
     // If onLog callback is provided, use it (suppresses console output)
     if (onLog) {
-      onLog({ message, timestamp: new Date() });
+      onLog({ message: `[HashConnect] ${message}`, timestamp: new Date() });
       return;
     }
 
@@ -189,6 +202,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     cluster: pusherCluster,
     authEndpoint: `${authEndpoint}/auth/pusher`,
     debug,
+    onLog,
   });
 
   const { refresh: refreshTokens, isTokenExpired } = useTokenRefresh({
