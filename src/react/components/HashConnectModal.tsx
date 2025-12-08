@@ -5,7 +5,7 @@
  * Renders a modal using React Portal for connecting via QR code
  */
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { QRCodeDisplay } from './QRCodeDisplay';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
@@ -57,19 +57,26 @@ export const HashConnectModal: React.FC<HashConnectModalProps> = ({
   title = 'Hash Pass',
   subtitle = 'Connect',
 }) => {
+  // Use ref for onClose to ensure stable handler reference
+  // This prevents the effect from re-running when onClose changes
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   // Handle escape key to close modal
   useEffect(() => {
     if (!isOpen) return;
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
+  }, [isOpen]); // onClose removed - using ref for stable reference
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -86,9 +93,9 @@ export const HashConnectModal: React.FC<HashConnectModalProps> = ({
   // Handle backdrop click
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      onClose();
+      onCloseRef.current();
     }
-  }, [onClose]);
+  }, []); // onClose removed - using ref for stable reference
 
   // Handle content click (stop propagation)
   const handleContentClick = useCallback((e: React.MouseEvent) => {
@@ -121,7 +128,7 @@ export const HashConnectModal: React.FC<HashConnectModalProps> = ({
         {/* Close button */}
         <button
           id="hash-connect-close-button"
-          onClick={onClose}
+          onClick={() => onCloseRef.current()}
           aria-label="Close modal"
           type="button"
         >

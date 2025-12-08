@@ -1,0 +1,519 @@
+'use client';
+
+/**
+ * HashConnect Provider - React-Only Architecture (v3)
+ * 
+ * This provider manages all authentication state directly in React,
+ * without relying on window.HASHConnect or CustomEvents.
+ * 
+ * @example
+ * ```tsx
+ * import { HashConnectProvider, useHashConnect } from '@hashpass/connect';
+ * 
+ * function App() {
+ *   return (
+ *     <HashConnectProvider disclaimer="By connecting, you agree to our terms.">
+ *       <MyApp />
+ *     </HashConnectProvider>
+ *   );
+ * }
+ * ```
+ */
+
+import React, { useState, useCallback, useEffect, useRef, useContext } from 'react';
+import { usePusher } from './hooks/usePusher';
+import { useStorage, STORAGE_KEYS } from './hooks/useStorage';
+import { useTokenRefresh } from './hooks/useTokenRefresh';
+import { HashConnectModal } from './components/HashConnectModal';
+import { HashConnectContext, initialAuthState } from './HashConnectContext';
+import { CONFIG } from '../config';
+import type { PusherChannel } from '../types/pusher';
+import type { AuthState, HashConnectContextType } from './HashConnectContext';
+
+// Re-export types from context
+export type { AuthState, HashConnectContextType } from './HashConnectContext';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface HashConnectConfig {
+  /** Pusher app key */
+  pusherKey?: string;
+  /** Pusher cluster */
+  pusherCluster?: string;
+  /** Auth endpoint URL */
+  authEndpoint?: string;
+}
+
+export interface HashConnectProviderProps {
+  children: React.ReactNode;
+  /** Enable debug logging */
+  debug?: boolean;
+  /** Custom disclaimer text shown in modal */
+  disclaimer?: string;
+  /** Custom configuration (optional, uses defaults) */
+  config?: HashConnectConfig;
+}
+
+// ============================================================================
+// Provider Component
+// ============================================================================
+
+export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
+  children,
+  debug = false,
+  disclaimer,
+  config = {},
+}) => {
+  // Merge config with defaults
+  const pusherKey = config.pusherKey || CONFIG.PUSHER_KEY;
+  const pusherCluster = config.pusherCluster || CONFIG.PUSHER_CLUSTER;
+  const authEndpoint = config.authEndpoint || CONFIG.AUTH_ENDPOINT;
+
+  // =========================================================================
+  // State
+  // =========================================================================
+  
+  const [state, setState] = useState<AuthState>(initialAuthState);
+  const sessionChannelRef = useRef<PusherChannel | null>(null);
+  const userChannelRef = useRef<PusherChannel | null>(null);
+
+  // =========================================================================
+  // Hooks
+  // =========================================================================
+
+  const storage = useStorage({ prefix: 'hc:', syncAcrossTabs: true });
+
+  const {
+    client: pusherClient,
+    connectionState,
+    subscribe,
+    unsubscribe,
+    isReady: pusherReady,
+  } = usePusher({
+    key: pusherKey,
+    cluster: pusherCluster,
+    authEndpoint: `${authEndpoint}/auth/pusher`,
+    debug,
+  });
+
+  const { refresh: refreshTokens, isTokenExpired } = useTokenRefresh({
+    accessToken: state.accessToken,
+    refreshToken: state.refreshToken,
+    address: state.userAddress,
+    debug,
+    authEndpoint,
+    onTokensRefreshed: (tokens) => {
+      log('✅ Tokens refreshed proactively');
+      setState(prev => ({
+        ...prev,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      }));
+      storage.setItem(STORAGE_KEYS.ACCESS_TOKEN, tokens.accessToken);
+      storage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken);
+    },
+    onRefreshFailed: (error) => {
+      log('❌ Token refresh failed:', error);
+      if (error.shouldDisconnect) {
+        log('🚪 Disconnecting due to unrecoverable token error');
+        handleDisconnect();
+      }
+    },
+  });
+
+  // =========================================================================
+  // Logging
+  // =========================================================================
+
+  const log = useCallback((...args: unknown[]) => {
+    if (debug) console.log('[HashConnect]', ...args);
+  }, [debug]);
+
+  // =========================================================================
+  // Load stored session on mount
+  // =========================================================================
+
+  useEffect(() => {
+    const storedToken = storage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    const storedAddress = storage.getItem(STORAGE_KEYS.ADDRESS);
+
+    if (storedToken && storedAddress) {
+      log('✅ Found stored session, restoring...');
+      setState(prev => ({
+        ...prev,
+        accessToken: storedToken,
+        refreshToken: storage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
+        userAddress: storedAddress,
+        signature: storage.getItem(STORAGE_KEYS.SIGNATURE),
+        clubId: storage.getItem(STORAGE_KEYS.CLUB_ID),
+        clubName: storage.getItem(STORAGE_KEYS.CLUB_NAME),
+        sessionId: storage.getItem(STORAGE_KEYS.SESSION_ID),
+        isConnected: true,
+      }));
+    } else {
+      log('ℹ️ No stored session found');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // =========================================================================
+  // Cross-tab synchronization
+  // =========================================================================
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (!event.key?.startsWith('hc:')) return;
+
+      log('📦 Storage changed in another tab:', event.key);
+
+      // Another tab disconnected
+      if (event.key === 'hc:accessToken' && !event.newValue && event.oldValue) {
+        log('🔌 Disconnect detected from another tab');
+        setState(initialAuthState);
+        return;
+      }
+
+      // Another tab connected or refreshed tokens
+      if (event.key === 'hc:accessToken' && event.newValue) {
+        log('🔄 Token synced from another tab');
+        setState(prev => ({
+          ...prev,
+          accessToken: event.newValue,
+          isConnected: true,
+        }));
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [log]);
+
+  // =========================================================================
+  // Pusher Event Handlers
+  // =========================================================================
+
+  /**
+   * Handle when mobile app scans QR code
+   * Receives address and signature, then subscribes to user channel
+   */
+  const handleHashPassConnect = useCallback((data: { address: string; signature: string }) => {
+    log('📱 Mobile app connected:', data.address);
+
+    // Subscribe to user's private channel
+    const userChannelName = `private-${data.address}`;
+    const userChannel = subscribe(userChannelName);
+    
+    if (!userChannel) {
+      log('❌ Failed to subscribe to user channel');
+      return;
+    }
+
+    userChannelRef.current = userChannel;
+
+    // Wait for subscription to succeed, then request authorization
+    userChannel.bind('pusher:subscription_succeeded', () => {
+      log('✅ Subscribed to user channel, requesting authorization...');
+      
+      // Send authorization request to mobile app
+      userChannel.trigger('client-request-user-to-authorize-from-site', {
+        signature: data.signature,
+        channel: `private-hc-${state.sessionId}`,
+        domain: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+        name: typeof document !== 'undefined' ? document.title || 'Unknown site' : 'Unknown site',
+      });
+    });
+
+    // Update state with address and signature
+    setState(prev => ({
+      ...prev,
+      userAddress: data.address,
+      signature: data.signature,
+    }));
+
+    storage.setItem(STORAGE_KEYS.ADDRESS, data.address);
+    storage.setItem(STORAGE_KEYS.SIGNATURE, data.signature);
+  }, [subscribe, state.sessionId, storage, log]);
+
+  /**
+   * Handle authorization from mobile app
+   * Receives tokens and club info
+   */
+  const handleAuthorization = useCallback((data: {
+    address: string;
+    accessToken: string;
+    refreshToken: string;
+    clubId?: string;
+    clubName?: string;
+  }) => {
+    log('✅ Authorization received:', { address: data.address, hasTokens: !!data.accessToken });
+
+    // Store tokens
+    storage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.accessToken);
+    storage.setItem(STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken);
+    storage.setItem(STORAGE_KEYS.ADDRESS, data.address);
+    if (data.clubId) storage.setItem(STORAGE_KEYS.CLUB_ID, data.clubId);
+    if (data.clubName) storage.setItem(STORAGE_KEYS.CLUB_NAME, data.clubName);
+
+    // Update state
+    setState(prev => ({
+      ...prev,
+      isConnected: true,
+      isLoading: false,
+      isModalOpen: false,
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      userAddress: data.address,
+      clubId: data.clubId || null,
+      clubName: data.clubName || null,
+      error: null,
+    }));
+
+    log('✅ Connection complete!');
+  }, [storage, log]);
+
+  /**
+   * Handle unauthorization (revoke) from mobile app
+   */
+  const handleUnauthorization = useCallback(() => {
+    log('🔌 Unauthorization received from mobile app');
+    handleDisconnect();
+  }, [log]);
+
+  /**
+   * Disconnect and cleanup
+   */
+  const handleDisconnect = useCallback(() => {
+    log('🔌 Disconnecting...');
+
+    // Unsubscribe from channels
+    if (state.sessionId) {
+      unsubscribe(`private-hc-${state.sessionId}`);
+    }
+    if (state.userAddress) {
+      unsubscribe(`private-${state.userAddress}`);
+    }
+
+    // Clear channel refs
+    sessionChannelRef.current = null;
+    userChannelRef.current = null;
+
+    // Clear storage
+    storage.clear();
+
+    // Reset state
+    setState(initialAuthState);
+
+    log('✅ Disconnected');
+  }, [state.sessionId, state.userAddress, unsubscribe, storage, log]);
+
+  // =========================================================================
+  // Public API
+  // =========================================================================
+
+  /**
+   * Start connection flow
+   */
+  const connect = useCallback(async () => {
+    if (state.isConnected) {
+      log('⚠️ Already connected');
+      return;
+    }
+
+    if (state.isLoading) {
+      log('⚠️ Connection already in progress');
+      return;
+    }
+
+    if (!pusherReady) {
+      log('⚠️ Pusher not ready yet');
+      setState(prev => ({ ...prev, error: 'Connection not ready. Please try again.' }));
+      return;
+    }
+
+    log('🔗 Starting connection...');
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      // Generate new session ID
+      const sessionId = Math.random().toString(36).slice(2);
+      const channelName = `private-hc-${sessionId}`;
+
+      log('📺 Subscribing to session channel:', channelName);
+
+      // Subscribe to session channel
+      const channel = subscribe(channelName);
+      if (!channel) {
+        throw new Error('Failed to subscribe to session channel');
+      }
+
+      sessionChannelRef.current = channel;
+
+      // Store session ID
+      storage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+
+      // Bind event handlers
+      channel.bind('client-hash-pass-connect', handleHashPassConnect);
+      channel.bind('client-send-authorization-to-site', handleAuthorization);
+      channel.bind('client-send-unauthorization-to-site', handleUnauthorization);
+
+      // Update state and open modal
+      setState(prev => ({
+        ...prev,
+        sessionId,
+        isModalOpen: true,
+      }));
+
+      log('✅ Session created, modal opened');
+    } catch (error) {
+      log('❌ Connection error:', error);
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Connection failed',
+      }));
+    }
+  }, [
+    state.isConnected,
+    state.isLoading,
+    pusherReady,
+    subscribe,
+    storage,
+    handleHashPassConnect,
+    handleAuthorization,
+    handleUnauthorization,
+    log,
+  ]);
+
+  /**
+   * Get valid access token (refreshes if expired)
+   */
+  const getToken = useCallback(async (): Promise<string | null> => {
+    if (!state.accessToken) {
+      log('❌ No access token available');
+      return null;
+    }
+
+    // Check if token is expired
+    if (isTokenExpired()) {
+      log('⚠️ Token expired, refreshing...');
+      const newTokens = await refreshTokens();
+      return newTokens?.accessToken || null;
+    }
+
+    return state.accessToken;
+  }, [state.accessToken, isTokenExpired, refreshTokens, log]);
+
+  /**
+   * Get club ID
+   */
+  const getClubId = useCallback((): string | null => {
+    return state.clubId || storage.getItem(STORAGE_KEYS.CLUB_ID);
+  }, [state.clubId, storage]);
+
+  /**
+   * Get club name
+   */
+  const getClubName = useCallback((): string | null => {
+    return state.clubName || storage.getItem(STORAGE_KEYS.CLUB_NAME);
+  }, [state.clubName, storage]);
+
+  /**
+   * Make authenticated API request
+   */
+  const makeAuthRequest = useCallback(async <T,>(
+    url: string,
+    options: RequestInit = {}
+  ): Promise<T> => {
+    const token = await getToken();
+
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }, [getToken]);
+
+  /**
+   * Close modal
+   */
+  const handleCloseModal = useCallback(() => {
+    log('🔒 Modal closed');
+    
+    // If not connected yet, cleanup the session
+    if (!state.isConnected && state.sessionId) {
+      unsubscribe(`private-hc-${state.sessionId}`);
+      storage.removeItem(STORAGE_KEYS.SESSION_ID);
+    }
+
+    setState(prev => ({
+      ...prev,
+      isModalOpen: false,
+      isLoading: false,
+    }));
+  }, [state.isConnected, state.sessionId, unsubscribe, storage, log]);
+
+  // =========================================================================
+  // Context Value
+  // =========================================================================
+
+  const contextValue: HashConnectContextType = {
+    ...state,
+    connect,
+    disconnect: handleDisconnect,
+    getToken,
+    getClubId,
+    getClubName,
+    connectionState,
+    makeAuthRequest,
+  };
+
+  // =========================================================================
+  // Render
+  // =========================================================================
+
+  const sessionUrl = state.sessionId ? `hc:${state.sessionId}` : '';
+
+  return (
+    <HashConnectContext.Provider value={contextValue}>
+      {children}
+
+      <HashConnectModal
+        isOpen={state.isModalOpen}
+        onClose={handleCloseModal}
+        sessionUrl={sessionUrl}
+        connectionState={connectionState}
+        disclaimer={disclaimer}
+      />
+    </HashConnectContext.Provider>
+  );
+};
+
+// ============================================================================
+// Hook to access context
+// ============================================================================
+
+export const useHashConnectContext = (): HashConnectContextType => {
+  const context = useContext(HashConnectContext);
+  if (!context) {
+    throw new Error('useHashConnectContext must be used within HashConnectProvider');
+  }
+  return context;
+};
+
+export default HashConnectProvider;

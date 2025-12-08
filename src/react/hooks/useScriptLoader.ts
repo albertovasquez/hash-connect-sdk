@@ -3,7 +3,7 @@
  * SSR-safe: handles server-side rendering gracefully
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface UseScriptLoaderOptions {
   /** Number of retry attempts on failure */
@@ -64,31 +64,73 @@ export function useScriptLoader(
   const [error, setError] = useState<Error | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  const loadScript = useCallback(async (attemptsLeft: number): Promise<void> => {
+  // Use refs for callbacks to avoid stale closures in async operations
+  // This ensures the current callbacks are always called, even if they change mid-load
+  const onLoadRef = useRef(onLoad);
+  const onErrorRef = useRef(onError);
+  
+  // Track current src and retries to detect stale retry attempts
+  const currentSrcRef = useRef(src);
+  const currentRetriesRef = useRef(retries);
+  
+  // Track pending retry timeout for cleanup
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Keep refs up to date
+  useEffect(() => {
+    onLoadRef.current = onLoad;
+  }, [onLoad]);
+  
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+  
+  useEffect(() => {
+    currentSrcRef.current = src;
+  }, [src]);
+  
+  useEffect(() => {
+    currentRetriesRef.current = retries;
+  }, [retries]);
+
+  // Clear any pending retry timeout
+  const clearRetryTimeout = useCallback(() => {
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+  }, []);
+
+  const loadScript = useCallback(async (attemptsLeft: number, targetSrc: string): Promise<void> => {
     // SSR safety check
     if (typeof window === 'undefined') return;
 
+    // Check if this retry is still for the current src (prevents stale retries)
+    if (targetSrc !== currentSrcRef.current) {
+      return; // Abort - src changed, this retry is stale
+    }
+
     // Already loaded
-    if (loadedScripts.get(src)) {
+    if (loadedScripts.get(targetSrc)) {
       setLoaded(true);
       setLoading(false);
       return;
     }
 
     // Check if already loading
-    const existingPromise = loadingPromises.get(src);
+    const existingPromise = loadingPromises.get(targetSrc);
     if (existingPromise) {
       await existingPromise;
       return;
     }
 
     // Check if script tag already exists in DOM
-    const existingScript = document.querySelector(`script[src="${src}"]`);
+    const existingScript = document.querySelector(`script[src="${targetSrc}"]`);
     if (existingScript) {
-      loadedScripts.set(src, true);
+      loadedScripts.set(targetSrc, true);
       setLoaded(true);
       setLoading(false);
-      onLoad?.();
+      onLoadRef.current?.();
       return;
     }
 
@@ -97,34 +139,51 @@ export function useScriptLoader(
 
     const loadPromise = new Promise<void>((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = src;
+      script.src = targetSrc;
       script.async = true;
 
       script.onload = () => {
-        loadedScripts.set(src, true);
-        loadingPromises.delete(src);
+        loadedScripts.set(targetSrc, true);
+        loadingPromises.delete(targetSrc);
         setLoaded(true);
         setLoading(false);
-        onLoad?.();
+        onLoadRef.current?.();
         resolve();
       };
 
       script.onerror = () => {
-        loadingPromises.delete(src);
+        loadingPromises.delete(targetSrc);
         script.remove();
 
-        const err = new Error(`Failed to load script: ${src}`);
+        const err = new Error(`Failed to load script: ${targetSrc}`);
+        
+        // Check if this is still the current src before retrying
+        if (targetSrc !== currentSrcRef.current) {
+          reject(err); // Abort - src changed
+          return;
+        }
         
         if (attemptsLeft > 0) {
           // Retry with exponential backoff
-          const delay = Math.pow(2, retries - attemptsLeft) * 500;
-          setTimeout(() => {
-            loadScript(attemptsLeft - 1).catch(reject);
+          // Use currentRetriesRef to get correct delay calculation
+          const totalRetries = currentRetriesRef.current;
+          const delay = Math.pow(2, totalRetries - attemptsLeft) * 500;
+          
+          // Clear any existing retry timeout before setting a new one
+          clearRetryTimeout();
+          
+          retryTimeoutRef.current = setTimeout(() => {
+            // Double-check src hasn't changed before retrying
+            if (targetSrc === currentSrcRef.current) {
+              loadScript(attemptsLeft - 1, targetSrc).catch(reject);
+            } else {
+              reject(new Error('Script source changed during retry'));
+            }
           }, delay);
         } else {
           setLoading(false);
           setError(err);
-          onError?.(err);
+          onErrorRef.current?.(err);
           reject(err);
         }
       };
@@ -132,21 +191,30 @@ export function useScriptLoader(
       document.head.appendChild(script);
     });
 
-    loadingPromises.set(src, loadPromise);
+    loadingPromises.set(targetSrc, loadPromise);
 
     try {
       await loadPromise;
     } catch (err) {
       // Error already handled in onerror
     }
-  }, [src, retries, onLoad, onError]);
+  }, [clearRetryTimeout]); // Removed src/retries - using refs and passing targetSrc as parameter
 
   useEffect(() => {
     // SSR safety check
     if (typeof window === 'undefined') return;
 
-    loadScript(retries - 1);
-  }, [src, retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Clear any pending retry from previous src
+    clearRetryTimeout();
+    
+    // Pass retries as attemptsLeft so that retries: 3 means 1 initial + 3 retries = 4 total attempts
+    loadScript(retries, src);
+    
+    // Cleanup: cancel pending retries when src changes or component unmounts
+    return () => {
+      clearRetryTimeout();
+    };
+  }, [src, retryCount, loadScript, retries, clearRetryTimeout]);
 
   const retry = useCallback(() => {
     setRetryCount(c => c + 1);

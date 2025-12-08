@@ -47,10 +47,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   showText = true,
 }) => {
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.connecting;
-  
-  const handleClick = () => {
-    onClick?.();
-  };
+  const isInteractive = typeof onClick === 'function';
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -59,16 +56,26 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     }
   };
 
+  // Only attach interactive handlers and attributes when onClick is provided
+  const interactiveProps = isInteractive
+    ? {
+        onClick: () => onClick?.(),
+        onKeyDown: handleKeyDown,
+        role: 'button' as const,
+        tabIndex: 0,
+        style: { cursor: 'pointer' },
+      }
+    : {
+        role: 'status' as const,
+        style: { cursor: 'default' },
+      };
+
   return (
     <div
       id="hash-connect-status-indicator"
       className={className}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      role={onClick ? 'button' : 'status'}
-      tabIndex={onClick ? 0 : undefined}
       aria-label={`Connection status: ${config.text}`}
-      style={{ cursor: onClick ? 'pointer' : 'default' }}
+      {...interactiveProps}
     >
       <span
         id="hash-connect-status-dot"

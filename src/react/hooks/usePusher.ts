@@ -94,8 +94,17 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isManualDisconnectRef = useRef(false);
   const reconnectListenerRef = useRef<(() => void) | null>(null);
+  
+  // Use ref to access client in callbacks without causing dependency changes
+  // This prevents infinite loops from client state changes triggering effect re-runs
+  const clientRef = useRef<PusherClient | null>(null);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    clientRef.current = client;
+  }, [client]);
 
-  // Memoize script loader callbacks to prevent unnecessary re-renders (Bug Fix #1)
+  // Memoize script loader callback to prevent useScriptLoader from recreating loadScript
   const handleScriptError = useCallback((err: Error) => {
     if (debug) console.error('[usePusher] Failed to load Pusher script:', err);
     setError(err);
@@ -130,15 +139,17 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
     }
   }, []);
 
-  // Clean up reconnection listener (Bug Fix #2)
+  // Clean up reconnection listener to prevent duplicate handlers
+  // Uses clientRef to avoid dependency on client state
   const cleanupReconnectListener = useCallback(() => {
-    if (reconnectListenerRef.current && client) {
-      client.connection.unbind('connected', reconnectListenerRef.current);
+    if (reconnectListenerRef.current && clientRef.current) {
+      clientRef.current.connection.unbind('connected', reconnectListenerRef.current);
       reconnectListenerRef.current = null;
     }
-  }, [client]);
+  }, []); // No dependencies - uses refs
 
   // Handle connection failure with retry
+  // Uses clientRef to avoid dependency on client state, preventing infinite loops
   const handleConnectionFailure = useCallback(() => {
     if (isManualDisconnectRef.current) {
       log('Skipping reconnection (manual disconnect)');
@@ -158,10 +169,11 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
 
     clearReconnectTimeout();
     reconnectTimeoutRef.current = setTimeout(() => {
-      if (client) {
+      const currentClient = clientRef.current;
+      if (currentClient) {
         log('Attempting reconnection...');
         
-        // Clean up any existing reconnect listener before adding a new one (Bug Fix #2)
+        // Clean up any existing reconnect listener before adding a new one
         cleanupReconnectListener();
         
         // Create and store the new listener
@@ -174,10 +186,10 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
         reconnectListenerRef.current = onReconnected;
         
         // Pusher will auto-reconnect, bind listener to track success
-        client.connection.bind('connected', onReconnected);
+        currentClient.connection.bind('connected', onReconnected);
       }
     }, delay);
-  }, [client, log, getReconnectDelay, clearReconnectTimeout, cleanupReconnectListener]);
+  }, [log, getReconnectDelay, clearReconnectTimeout, cleanupReconnectListener]); // client removed - uses clientRef
 
   // Initialize Pusher client
   useEffect(() => {
@@ -202,8 +214,8 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
         authEndpoint,
       });
 
-      // Bind connection state changes
-      pusher.connection.bind('state_change', (states: { previous: ConnectionState; current: ConnectionState }) => {
+      // Create named handlers so we can unbind them in cleanup
+      const handleStateChange = (states: { previous: ConnectionState; current: ConnectionState }) => {
         log(`Connection state: ${states.previous} -> ${states.current}`);
         setConnectionState(states.current);
 
@@ -220,13 +232,16 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
             }
             break;
         }
-      });
+      };
 
-      // Bind error handler
-      pusher.connection.bind('error', (err: Error) => {
+      const handleError = (err: Error) => {
         log('Connection error:', err);
         setError(err);
-      });
+      };
+
+      // Bind connection event handlers
+      pusher.connection.bind('state_change', handleStateChange);
+      pusher.connection.bind('error', handleError);
 
       setClient(pusher);
       log('Pusher client initialized');
@@ -234,11 +249,17 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
       return () => {
         log('Cleaning up Pusher client...');
         clearReconnectTimeout();
-        // Clean up reconnect listener before disconnecting
+        
+        // Unbind all event listeners to prevent memory leaks
+        pusher.connection.unbind('state_change', handleStateChange);
+        pusher.connection.unbind('error', handleError);
+        
+        // Clean up reconnect listener if present
         if (reconnectListenerRef.current) {
           pusher.connection.unbind('connected', reconnectListenerRef.current);
           reconnectListenerRef.current = null;
         }
+        
         pusher.disconnect();
         setClient(null);
       };
@@ -250,38 +271,44 @@ export function usePusher(options: UsePusherOptions): UsePusherReturn {
   }, [pusherLoaded, autoConnect, key, cluster, authEndpoint, log, handleConnectionFailure, clearReconnectTimeout]);
 
   // Subscribe to a channel
+  // Uses clientRef to provide stable callback reference
   const subscribe = useCallback((channelName: string): PusherChannel | null => {
-    if (!client) {
+    const currentClient = clientRef.current;
+    if (!currentClient) {
       log(`Cannot subscribe to ${channelName}: client not ready`);
       return null;
     }
 
     log(`Subscribing to channel: ${channelName}`);
-    return client.subscribe(channelName);
-  }, [client, log]);
+    return currentClient.subscribe(channelName);
+  }, [log]); // client removed - uses clientRef
 
   // Unsubscribe from a channel
+  // Uses clientRef to provide stable callback reference
   const unsubscribe = useCallback((channelName: string): void => {
-    if (!client) return;
+    const currentClient = clientRef.current;
+    if (!currentClient) return;
     
     log(`Unsubscribing from channel: ${channelName}`);
-    client.unsubscribe(channelName);
-  }, [client, log]);
+    currentClient.unsubscribe(channelName);
+  }, [log]); // client removed - uses clientRef
 
   // Disconnect from Pusher
+  // Uses clientRef to provide stable callback reference
   const disconnect = useCallback((): void => {
     log('Disconnecting...');
     isManualDisconnectRef.current = true;
     clearReconnectTimeout();
     reconnectAttemptsRef.current = 0;
     
-    if (client) {
-      client.disconnect();
+    const currentClient = clientRef.current;
+    if (currentClient) {
+      currentClient.disconnect();
     }
     
     setConnectionState('disconnected');
     log('Disconnected');
-  }, [client, log, clearReconnectTimeout]);
+  }, [log, clearReconnectTimeout]); // client removed - uses clientRef
 
   // Reconnect to Pusher
   const reconnect = useCallback((): void => {

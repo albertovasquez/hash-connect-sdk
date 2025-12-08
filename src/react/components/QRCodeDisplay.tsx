@@ -133,7 +133,7 @@ export const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
         role="alert"
       >
         <span style={{ fontSize: '0.75rem', color: '#c00' }}>
-          {error || 'Failed to load QR code'}
+          {error || scriptError?.message || 'Failed to load QR code'}
         </span>
       </div>
     );
