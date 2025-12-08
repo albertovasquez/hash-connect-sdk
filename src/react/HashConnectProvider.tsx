@@ -106,6 +106,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     connectionState,
     subscribe,
     unsubscribe,
+    disconnect: disconnectPusher,
     isReady: pusherReady,
   } = usePusher({
     key: pusherKey,
@@ -190,12 +191,32 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       }
 
       // Another tab connected or refreshed tokens
+      // Sync ALL relevant fields, not just accessToken, to prevent authentication mismatches
+      // when another tab logs in as a different user
       if (event.key === 'hc:accessToken' && event.newValue) {
-        log('🔄 Token synced from another tab');
+        log('🔄 Token synced from another tab, loading full session state');
+        
+        // Read all session fields from storage to stay in sync
+        const storedAddress = storage.getItem(STORAGE_KEYS.ADDRESS);
+        const storedRefreshToken = storage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+        const storedClubId = storage.getItem(STORAGE_KEYS.CLUB_ID);
+        const storedClubName = storage.getItem(STORAGE_KEYS.CLUB_NAME);
+        const storedSignature = storage.getItem(STORAGE_KEYS.SIGNATURE);
+        const storedSessionId = storage.getItem(STORAGE_KEYS.SESSION_ID);
+        
+        // Update sessionIdRef to keep it in sync
+        sessionIdRef.current = storedSessionId;
+        
         setState(prev => ({
           ...prev,
           accessToken: event.newValue,
-          isConnected: true,
+          refreshToken: storedRefreshToken,
+          userAddress: storedAddress,
+          clubId: storedClubId,
+          clubName: storedClubName,
+          signature: storedSignature,
+          sessionId: storedSessionId,
+          isConnected: !!storedAddress, // Only connected if we have an address
         }));
       }
     };
@@ -311,6 +332,9 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       unsubscribe(`private-${state.userAddress}`);
     }
 
+    // Disconnect from Pusher to properly cleanup the connection
+    disconnectPusher();
+
     // Clear all refs
     sessionChannelRef.current = null;
     userChannelRef.current = null;
@@ -323,7 +347,7 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     setState(initialAuthState);
 
     log('✅ Disconnected');
-  }, [state.userAddress, unsubscribe, storage, log]);
+  }, [state.userAddress, unsubscribe, disconnectPusher, storage, log]);
 
   // Keep ref in sync with current handleDisconnect
   useEffect(() => {
@@ -453,6 +477,12 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
 
   /**
    * Make authenticated API request
+   * 
+   * Content-Type is only set to application/json when:
+   * - No Content-Type header is provided by the user
+   * - The body is NOT FormData, Blob, ArrayBuffer, or other non-JSON types
+   * 
+   * This allows proper handling of file uploads (FormData) and binary data.
    */
   const makeAuthRequest = useCallback(async <T,>(
     url: string,
@@ -464,13 +494,47 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       throw new Error('No authentication token available');
     }
 
+    // Determine if we should set Content-Type: application/json
+    // Don't set it for FormData, Blob, ArrayBuffer, etc. as the browser handles these
+    const userHeaders = options.headers || {};
+    const hasUserContentType = userHeaders instanceof Headers
+      ? userHeaders.has('Content-Type')
+      : Object.keys(userHeaders).some(
+          key => key.toLowerCase() === 'content-type'
+        );
+    
+    // Check if body is a type that should NOT have application/json Content-Type
+    const body = options.body;
+    const isNonJsonBody = body instanceof FormData ||
+      body instanceof Blob ||
+      body instanceof ArrayBuffer ||
+      body instanceof URLSearchParams ||
+      (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream);
+    
+    // Build headers: only add Content-Type: application/json if appropriate
+    // Convert Headers to plain object if necessary
+    let baseHeaders: Record<string, string> = {};
+    if (userHeaders instanceof Headers) {
+      userHeaders.forEach((value, key) => {
+        baseHeaders[key] = value;
+      });
+    } else {
+      baseHeaders = userHeaders as Record<string, string>;
+    }
+    
+    const headers: Record<string, string> = {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    };
+    
+    // Only set Content-Type if user didn't provide one AND body is JSON-compatible
+    if (!hasUserContentType && !isNonJsonBody) {
+      headers['Content-Type'] = 'application/json';
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     if (!response.ok) {

@@ -1,6 +1,6 @@
 {
   "name": "@hashpass/connect",
-  "version": "3.0.0",
+  "version": "3.0.2",
   "description": "HashConnect SDK v3 - React-only authentication and wallet integration for web applications",
   "main": "dist/hash-connect.js",
   "module": "dist/hash-connect.js",
@@ -43,7 +43,8 @@
   "homepage": "https://github.com/bitlabs/hash-connect-sdk#readme",
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "npm run clean && webpack --mode production",
+    "build": "npm run clean && webpack --mode production && npm run build:types",
+    "build:types": "tsc --emitDeclarationOnly --declaration --declarationDir dist",
     "build:dev": "webpack --mode development --watch",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
