@@ -200,27 +200,18 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     onTokensRefreshed: (tokens) => {
       log('✅ Tokens refreshed proactively');
       
-      // Use setState callback to get current state values (not stale closure)
-      setState(prev => {
-        const newState = {
-          ...prev,
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-        };
-        
-        // Fire callback with current state values at execution time
-        onAuthStateChange?.({
-          type: 'refreshed',
-          isConnected: true,
-          userAddress: newState.userAddress,
-          clubId: newState.clubId,
-        });
-        
-        return newState;
-      });
+      // Update state (pure function, no side effects)
+      setState(prev => ({
+        ...prev,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      }));
       
       storage.setItem(STORAGE_KEYS.ACCESS_TOKEN, tokens.accessToken);
       storage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken);
+      
+      // Note: onAuthStateChange callback is fired from useEffect below
+      // that watches for token changes, ensuring current state values
     },
     onRefreshFailed: (error) => {
       log('❌ Token refresh failed:', error);
@@ -230,6 +221,33 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       }
     },
   });
+
+  // =========================================================================
+  // Token Refresh Callback Effect
+  // =========================================================================
+  
+  // Fire onAuthStateChange when tokens are refreshed
+  // Uses useEffect to ensure we have current state values, not stale closure
+  const prevAccessTokenRef = useRef(state.accessToken);
+  
+  useEffect(() => {
+    const prevToken = prevAccessTokenRef.current;
+    const currentToken = state.accessToken;
+    
+    // Token changed and we have a new token (refresh occurred)
+    if (prevToken && currentToken && prevToken !== currentToken && state.isConnected) {
+      log('🔄 Token refresh detected, firing callback');
+      onAuthStateChange?.({
+        type: 'refreshed',
+        isConnected: true,
+        userAddress: state.userAddress,
+        clubId: state.clubId,
+      });
+    }
+    
+    // Update ref for next comparison
+    prevAccessTokenRef.current = currentToken;
+  }, [state.accessToken, state.isConnected, state.userAddress, state.clubId, onAuthStateChange, log]);
 
   // =========================================================================
   // Load stored session on mount
