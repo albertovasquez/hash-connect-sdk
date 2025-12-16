@@ -25,3 +25,7 @@ export type { QRCodeDisplayProps } from './QRCodeDisplay';
 // Connection status indicator
 export { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 export type { ConnectionStatusIndicatorProps } from './ConnectionStatusIndicator';
+
+// Debug overlay component
+export { DebugOverlay } from './DebugOverlay';
+export type { DebugOverlayProps } from './DebugOverlay';

@@ -97,12 +97,14 @@ export {
   HashConnectModal,
   QRCodeDisplay,
   ConnectionStatusIndicator,
+  DebugOverlay,
 } from './components';
 
 export type {
   HashConnectModalProps,
   QRCodeDisplayProps,
   ConnectionStatusIndicatorProps,
+  DebugOverlayProps,
 } from './components';
 
 // ============================================================================

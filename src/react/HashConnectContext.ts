@@ -5,6 +5,12 @@
 import { createContext } from 'react';
 import type { ConnectionState } from '../types/pusher';
 
+// Forward declare LogEvent type from HashConnectProvider
+export interface LogEvent {
+  message: string;
+  timestamp: Date;
+}
+
 // ============================================================================
 // Auth State Type
 // ============================================================================
@@ -43,6 +49,12 @@ export interface HashConnectContextType extends AuthState {
   connectionState: ConnectionState;
   /** Make an authenticated API request */
   makeAuthRequest: <T>(url: string, options?: RequestInit) => Promise<T>;
+  /** Whether debug mode is enabled */
+  isDebugMode: boolean;
+  /** Debug logs buffer */
+  debugLogs: LogEvent[];
+  /** Toggle debug mode on/off */
+  toggleDebugMode: () => void;
 }
 
 // ============================================================================

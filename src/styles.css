@@ -178,3 +178,182 @@
         opacity: 0.4;
     }
 }
+
+/* ============================================================================
+   Debug Overlay Styles
+   ============================================================================ */
+
+#hash-connect-debug-overlay {
+    font-family: "Montserrat", sans-serif;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 450px;
+    height: 500px;
+    background-color: #1a1a2e;
+    border: 1px solid #16213e;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#hash-connect-debug-header {
+    background-color: #16213e;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #0f3460;
+    flex-shrink: 0;
+}
+
+#hash-connect-debug-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #e94560;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+#hash-connect-debug-icon {
+    font-size: 1.2rem;
+}
+
+#hash-connect-debug-count {
+    color: #8b92a8;
+    font-weight: 400;
+    font-size: 0.8rem;
+}
+
+#hash-connect-debug-actions {
+    display: flex;
+    gap: 8px;
+}
+
+#hash-connect-debug-scroll-btn,
+#hash-connect-debug-close-btn {
+    background-color: transparent;
+    border: none;
+    color: #8b92a8;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+#hash-connect-debug-scroll-btn:hover,
+#hash-connect-debug-close-btn:hover {
+    background-color: #0f3460;
+    color: #eaeef7;
+}
+
+#hash-connect-debug-logs {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    background-color: #1a1a2e;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+#hash-connect-debug-logs::-webkit-scrollbar {
+    width: 8px;
+}
+
+#hash-connect-debug-logs::-webkit-scrollbar-track {
+    background: #16213e;
+}
+
+#hash-connect-debug-logs::-webkit-scrollbar-thumb {
+    background: #0f3460;
+    border-radius: 4px;
+}
+
+#hash-connect-debug-logs::-webkit-scrollbar-thumb:hover {
+    background: #1a4d7a;
+}
+
+#hash-connect-debug-empty {
+    color: #8b92a8;
+    text-align: center;
+    padding: 40px 20px;
+    font-style: italic;
+}
+
+.hash-connect-debug-log {
+    display: grid;
+    grid-template-columns: 90px 150px 1fr;
+    gap: 8px;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    background-color: rgba(15, 52, 96, 0.3);
+    border-left: 3px solid transparent;
+}
+
+.hash-connect-debug-log-time {
+    color: #8b92a8;
+    font-weight: 500;
+}
+
+.hash-connect-debug-log-prefix {
+    color: #4ecca3;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hash-connect-debug-log-message {
+    color: #eaeef7;
+    word-break: break-word;
+}
+
+.hash-connect-debug-log-info {
+    border-left-color: #4ecca3;
+}
+
+.hash-connect-debug-log-success {
+    border-left-color: #4CAF50;
+}
+
+.hash-connect-debug-log-warning {
+    border-left-color: #FFA500;
+    background-color: rgba(255, 165, 0, 0.1);
+}
+
+.hash-connect-debug-log-error {
+    border-left-color: #e94560;
+    background-color: rgba(233, 69, 96, 0.1);
+}
+
+#hash-connect-debug-scroll-notice {
+    background-color: #0f3460;
+    color: #8b92a8;
+    padding: 8px 12px;
+    text-align: center;
+    font-size: 0.7rem;
+    border-top: 1px solid #16213e;
+    flex-shrink: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #hash-connect-debug-overlay {
+        width: calc(100% - 40px);
+        height: 400px;
+        right: 20px;
+        left: 20px;
+    }
+
+    .hash-connect-debug-log {
+        grid-template-columns: 80px 100px 1fr;
+        font-size: 0.7rem;
+    }
+}

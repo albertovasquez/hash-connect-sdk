@@ -25,6 +25,7 @@ import { usePusher } from './hooks/usePusher';
 import { useStorage, STORAGE_KEYS } from './hooks/useStorage';
 import { useTokenRefresh } from './hooks/useTokenRefresh';
 import { HashConnectModal } from './components/HashConnectModal';
+import { DebugOverlay } from './components/DebugOverlay';
 import { HashConnectContext, initialAuthState } from './HashConnectContext';
 import { CONFIG } from '../config';
 import type { PusherChannel } from '../types/pusher';
@@ -152,13 +153,28 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
       return String(arg);
     }).join(' ');
 
-    // If onLog callback is provided, use it (suppresses console output)
-    if (onLog) {
-      onLog({ message: `[HashConnectProvider] ${message}`, timestamp: new Date() });
-      return;
+    const logEvent: LogEvent = {
+      message: `[HashConnectProvider] ${message}`,
+      timestamp: new Date(),
+    };
+
+    // ALWAYS capture logs internally for debug overlay
+    if (typeof window !== 'undefined') {
+      debugLogsRef.current.push(logEvent);
+      // Keep only last 200 logs
+      if (debugLogsRef.current.length > 200) {
+        debugLogsRef.current.shift();
+      }
+      // Update state to trigger re-render of debug overlay
+      setDebugLogs([...debugLogsRef.current]);
     }
 
-    // Otherwise, use debug prop for console logging
+    // If onLog callback is provided, call it
+    if (onLog) {
+      onLog(logEvent);
+    }
+
+    // Console output controlled by debug prop (independent of onLog)
     if (debug) {
       console.log('[HashConnect]', ...args);
     }
@@ -169,17 +185,21 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
   // =========================================================================
   
   const [state, setState] = useState<AuthState>(initialAuthState);
+  const [isDebugMode, setIsDebugMode] = useState(false);
+  const [debugLogs, setDebugLogs] = useState<LogEvent[]>([]);
+  const debugLogsRef = useRef<LogEvent[]>([]);
+
   const sessionChannelRef = useRef<PusherChannel | null>(null);
   const userChannelRef = useRef<PusherChannel | null>(null);
-  
+
   // Ref for sessionId to ensure handlers always have the current value
   // This is necessary because handlers are bound before state updates complete
   const sessionIdRef = useRef<string | null>(null);
-  
+
   // Ref for handleDisconnect to allow callbacks to access current version
   // This avoids circular dependencies with useTokenRefresh callbacks
   const handleDisconnectRef = useRef<() => void>(() => {});
-  
+
   // Ref to store the subscription_succeeded handler for cleanup
   // This prevents duplicate handlers when reconnecting with the same address
   const subscriptionSucceededHandlerRef = useRef<((data: any) => void) | null>(null);
@@ -322,6 +342,17 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
         ...prev,
         isInitialized: true,
       }));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // =========================================================================
+  // Initialize debug mode from storage
+  // =========================================================================
+
+  useEffect(() => {
+    const storedDebugMode = storage.getItem(STORAGE_KEYS.DEBUG_MODE);
+    if (storedDebugMode === 'true') {
+      setIsDebugMode(true);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -872,6 +903,19 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
   }, [state.isConnected, state.sessionId, state.userAddress, unsubscribe, storage, log]);
 
   // =========================================================================
+  // Debug Mode
+  // =========================================================================
+
+  const toggleDebugMode = useCallback(() => {
+    setIsDebugMode(prev => {
+      const newValue = !prev;
+      storage.setItem(STORAGE_KEYS.DEBUG_MODE, newValue ? 'true' : 'false');
+      log(`🐛 Debug mode ${newValue ? 'enabled' : 'disabled'}`);
+      return newValue;
+    });
+  }, [storage, log]);
+
+  // =========================================================================
   // Context Value
   // =========================================================================
 
@@ -886,6 +930,9 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     getClubName,
     connectionState,
     makeAuthRequest,
+    isDebugMode,
+    debugLogs,
+    toggleDebugMode,
   }), [
     state,
     connect,
@@ -895,6 +942,9 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
     getClubName,
     connectionState,
     makeAuthRequest,
+    isDebugMode,
+    debugLogs,
+    toggleDebugMode,
   ]);
 
   // =========================================================================
@@ -913,6 +963,13 @@ export const HashConnectProvider: React.FC<HashConnectProviderProps> = ({
         sessionUrl={sessionUrl}
         connectionState={connectionState}
         disclaimer={disclaimer}
+        onDebugToggle={toggleDebugMode}
+      />
+
+      <DebugOverlay
+        isOpen={isDebugMode}
+        onClose={toggleDebugMode}
+        logs={debugLogs}
       />
     </HashConnectContext.Provider>
   );

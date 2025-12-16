@@ -28,6 +28,8 @@ export interface HashConnectModalProps {
   title?: string;
   /** Subtitle (default: "Connect") */
   subtitle?: string;
+  /** Debug mode toggle handler (for ConnectionStatusIndicator) */
+  onDebugToggle?: () => void;
 }
 
 // Default Hash Pass logo
@@ -56,6 +58,7 @@ export const HashConnectModal: React.FC<HashConnectModalProps> = ({
   logoUrl = DEFAULT_LOGO_URL,
   title = 'Hash Pass',
   subtitle = 'Connect',
+  onDebugToggle,
 }) => {
   // Use ref for onClose to ensure stable handler reference
   // This prevents the effect from re-running when onClose changes
@@ -90,13 +93,6 @@ export const HashConnectModal: React.FC<HashConnectModalProps> = ({
     e.stopPropagation();
   }, []);
 
-  // Handle status indicator click (reload page for reconnection)
-  const handleStatusClick = useCallback(() => {
-    if (connectionState === 'failed' || connectionState === 'disconnected') {
-      window.location.reload();
-    }
-  }, [connectionState]);
-
   // Don't render if not open or SSR
   if (!isOpen) return null;
   if (typeof document === 'undefined') return null;
@@ -126,7 +122,7 @@ export const HashConnectModal: React.FC<HashConnectModalProps> = ({
         {/* Connection status indicator */}
         <ConnectionStatusIndicator
           status={connectionState}
-          onClick={handleStatusClick}
+          onClick={onDebugToggle}
         />
 
         {/* Main content */}
